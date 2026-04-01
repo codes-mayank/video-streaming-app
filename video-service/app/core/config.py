@@ -5,13 +5,13 @@ class Settings(BaseSettings):
     APP_NAME: str = "video-service"
     DEBUG: bool = False
 
-    DATABASE_URL: str = "sqlite:///./video_service.db"
+    DATABASE_URL: str = "postgresql+psycopg2://root:root@localhost/video_stream_app"
 
     R2_ACCESS_KEY_ID: str = ""
     R2_SECRET_ACCESS_KEY: str = ""
     R2_ENDPOINT_URL: str = ""
     R2_REGION: str = "auto"
-    R2_BUCKET_NAME: str = ""
+    R2_BUCKET_NAME: str = "videos"
     R2_PRESIGNED_EXPIRES_SECONDS: int = 900
     R2_PUBLIC_BASE_URL: str = ""
 

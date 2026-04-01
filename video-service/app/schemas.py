@@ -13,7 +13,7 @@ class VideoUploadInitRequest(BaseModel):
 
 class VideoUploadInitResponse(BaseModel):
     video_id: int
-    object_key: str
+    file_key: str
     upload_url: str
     expires_in_seconds: int
 
@@ -21,13 +21,15 @@ class VideoUploadInitResponse(BaseModel):
 class VideoCompleteUploadResponse(BaseModel):
     id: int
     status: str
+    file_key: str | None = None
+    bucket: str | None = None
 
 
 class VideoResponse(BaseModel):
     id: int
     title: str
     description: str | None
-    object_key: str
+    file_key: str
     status: str
     content_type: str
     size_bytes: int
@@ -44,3 +46,16 @@ class VideoListResponse(BaseModel):
     limit: int
     offset: int
     total: int
+
+
+class VideoProxyUploadRequest(BaseModel):
+    content_type: str = Field(..., min_length=1, max_length=100)
+    file_base64: str = Field(..., min_length=1)
+
+
+class VideoUploadJsonRequest(BaseModel):
+    title: str = Field(..., min_length=1, max_length=255)
+    description: str | None = None
+    content_type: str = Field(..., min_length=1, max_length=100)
+    file_base64: str = Field(..., min_length=1)
+    uploaded_by: str | None = Field(default=None, max_length=255)
