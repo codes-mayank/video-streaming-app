@@ -1,78 +1,81 @@
 import base64
 import binascii
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from app.core.config import (
-    effective_r2_access_key_id,
-    effective_r2_endpoint_url,
-    effective_r2_secret_access_key,
-    settings,
-)
+from app.core.config import settings
 from app.database import get_db
 from app.models import Video
 from app.schemas import (
+    TranscodeUpdateRequest,
     VideoCompleteUploadResponse,
     VideoListResponse,
-    VideoProxyUploadRequest,
     VideoResponse,
     VideoUploadJsonRequest,
     VideoUploadInitRequest,
     VideoUploadInitResponse,
 )
-from app.services.r2 import (
-    build_file_key,
+from app.services.s3 import (
     check_object_exists,
     generate_presigned_upload_url,
+    get_s3_client,
     is_supported_video_content_type,
     upload_video_bytes,
 )
+from app.services.storage_paths import build_video_object_keys
+from app.services.kafka_queue import try_publish_transcode_job
 
 router = APIRouter()
 
 
-def _require_r2_config() -> None:
+def _require_storage_config() -> None:
     required_values = [
-        effective_r2_access_key_id(),
-        effective_r2_secret_access_key(),
-        effective_r2_endpoint_url(),
-        settings.R2_BUCKET_NAME,
+        settings.AWS_ACCESS_KEY_ID,
+        settings.AWS_SECRET_ACCESS_KEY,
+        settings.AWS_ENDPOINT_URL,
+        settings.AWS_BUCKET_NAME,
     ]
     if not all(required_values):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="R2 is not configured. Set R2_* environment variables.",
+            detail="Storage is not configured. Set AWS_* environment variables.",
         )
 
 
 def _build_playback_url(video: Video) -> str | None:
-    if settings.R2_PUBLIC_BASE_URL:
-        return f"{settings.R2_PUBLIC_BASE_URL.rstrip('/')}/{video.file_key}"
+    if settings.AWS_PUBLIC_BASE_URL:
+        key = video.hls_master_key or video.file_key
+        return f"{settings.AWS_PUBLIC_BASE_URL.rstrip('/')}/{key}"
     return None
 
 #TODO: We also need Database support for transcoder
 @router.post("/upload/initiate", response_model=VideoUploadInitResponse, status_code=status.HTTP_201_CREATED)
 def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_db)):
-    _require_r2_config()
+    _require_storage_config()
     if not is_supported_video_content_type(payload.content_type):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported content type. Only video files are allowed.",
         )
 
-    file_key = build_file_key(payload.content_type)
-    upload_url = generate_presigned_upload_url(file_key=file_key, content_type=payload.content_type)
+    raw_key, storage_base_prefix, video_basename = build_video_object_keys(
+        payload.user_id, payload.video_name, payload.content_type
+    )
+    upload_url = generate_presigned_upload_url(file_key=raw_key, content_type=payload.content_type)
 
     video = Video(
         title=payload.title,
         description=payload.description,
-        file_key=file_key,
+        file_key=raw_key,
         status="upload_initiated",
         content_type=payload.content_type,
         size_bytes=payload.size_bytes,
         uploaded_by=payload.uploaded_by,
+        user_id=payload.user_id,
+        storage_base_prefix=storage_base_prefix,
+        video_basename=video_basename,
     )
     db.add(video)
     db.commit()
@@ -80,15 +83,58 @@ def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_d
 
     return VideoUploadInitResponse(
         video_id=video.id,
-        file_key=file_key,
+        file_key=raw_key,
+        storage_base_prefix=storage_base_prefix,
         upload_url=upload_url,
-        expires_in_seconds=settings.R2_PRESIGNED_EXPIRES_SECONDS,
+        expires_in_seconds=settings.AWS_PRESIGNED_EXPIRES_SECONDS,
     )
+
+
+@router.post("/{video_id}/upload", status_code=status.HTTP_204_NO_CONTENT)
+async def upload_file_to_storage(
+    video_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> Response:
+    """
+    Same-origin upload: browser sends the file here; the server writes to S3/R2.
+    Avoids CORS on direct PUT to the pre-signed URL (bucket CORS is not required for this path).
+    """
+    _require_storage_config()
+
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    if video.status != "upload_initiated":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Video is not awaiting upload. Initiate a new upload, or complete if the object is already in storage.",
+        )
+
+    incoming_ct = (file.content_type or "").strip()
+    if incoming_ct and incoming_ct != video.content_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Content-Type must match initiate ({video.content_type}).",
+        )
+
+    client = get_s3_client()
+    try:
+        client.upload_fileobj(
+            file.file,
+            settings.AWS_BUCKET_NAME,
+            video.file_key,
+            ExtraArgs={"ContentType": video.content_type},
+        )
+    finally:
+        await file.close()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{video_id}/complete", response_model=VideoCompleteUploadResponse)
 def complete_upload(video_id: int, db: Session = Depends(get_db)):
-    _require_r2_config()
+    _require_storage_config()
 
     video = db.query(Video).filter(Video.id == video_id).first()
     if not video:
@@ -109,44 +155,28 @@ def complete_upload(video_id: int, db: Session = Depends(get_db)):
     db.add(video)
     db.commit()
     db.refresh(video)
+    queued, qerr = try_publish_transcode_job(
+        video.id,
+        video.file_key,
+        video.content_type,
+        output_base_prefix=video.storage_base_prefix,
+        segment_basename=video.video_basename,
+    )
 
     return VideoCompleteUploadResponse(
         id=video.id,
         status=video.status,
         file_key=video.file_key,
-        bucket=settings.R2_BUCKET_NAME,
+        bucket=settings.AWS_BUCKET_NAME,
+        hls_output_prefix=video.storage_base_prefix or f"hls/{video.id}",
+        transcode_job_queued=queued,
+        transcode_queue_error=qerr,
     )
-
-
-@router.post("/{video_id}/upload-proxy")
-def upload_proxy(video_id: int, payload: VideoProxyUploadRequest, db: Session = Depends(get_db)):
-    _require_r2_config()
-
-    video = db.query(Video).filter(Video.id == video_id).first()
-    if not video:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-
-    if not is_supported_video_content_type(payload.content_type):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported content type. Only video files are allowed.",
-        )
-
-    try:
-        file_bytes = base64.b64decode(payload.file_base64, validate=True)
-    except (ValueError, binascii.Error):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid base64 payload")
-
-    if not file_bytes:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file payload")
-
-    upload_video_bytes(file_key=video.file_key, content_type=payload.content_type, data=file_bytes)
-    return {"video_id": video.id, "status": "uploaded_to_storage"}
 
 
 @router.post("/upload-json", response_model=VideoCompleteUploadResponse, status_code=status.HTTP_201_CREATED)
 def upload_json(payload: VideoUploadJsonRequest, db: Session = Depends(get_db)):
-    _require_r2_config()
+    _require_storage_config()
     if not is_supported_video_content_type(payload.content_type):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -161,9 +191,11 @@ def upload_json(payload: VideoUploadJsonRequest, db: Session = Depends(get_db)):
     if not file_bytes:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file payload")
 
-    file_key = build_file_key(payload.content_type)
-    upload_video_bytes(file_key=file_key, content_type=payload.content_type, data=file_bytes)
-    if not check_object_exists(file_key):
+    raw_key, storage_base_prefix, video_basename = build_video_object_keys(
+        payload.user_id, payload.video_name, payload.content_type
+    )
+    upload_video_bytes(file_key=raw_key, content_type=payload.content_type, data=file_bytes)
+    if not check_object_exists(raw_key):
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
             detail="Upload to object storage could not be verified.",
@@ -172,21 +204,57 @@ def upload_json(payload: VideoUploadJsonRequest, db: Session = Depends(get_db)):
     video = Video(
         title=payload.title,
         description=payload.description,
-        file_key=file_key,
+        file_key=raw_key,
         status="uploaded",
         content_type=payload.content_type,
         size_bytes=len(file_bytes),
         uploaded_by=payload.uploaded_by,
+        user_id=payload.user_id,
+        storage_base_prefix=storage_base_prefix,
+        video_basename=video_basename,
     )
     db.add(video)
     db.commit()
     db.refresh(video)
+    queued, qerr = try_publish_transcode_job(
+        video.id,
+        video.file_key,
+        video.content_type,
+        output_base_prefix=video.storage_base_prefix,
+        segment_basename=video.video_basename,
+    )
 
     return VideoCompleteUploadResponse(
         id=video.id,
         status=video.status,
         file_key=video.file_key,
-        bucket=settings.R2_BUCKET_NAME,
+        bucket=settings.AWS_BUCKET_NAME,
+        hls_output_prefix=video.storage_base_prefix or f"hls/{video.id}",
+        transcode_job_queued=queued,
+        transcode_queue_error=qerr,
+    )
+
+
+@router.post("/{video_id}/transcode-result", response_model=VideoCompleteUploadResponse)
+def update_transcode_result(video_id: int, payload: TranscodeUpdateRequest, db: Session = Depends(get_db)):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    video.status = payload.status
+    if payload.hls_master_key is not None:
+        video.hls_master_key = payload.hls_master_key
+    if payload.hls_prefix is not None:
+        video.hls_prefix = payload.hls_prefix
+
+    db.add(video)
+    db.commit()
+    db.refresh(video)
+    return VideoCompleteUploadResponse(
+        id=video.id,
+        status=video.status,
+        file_key=video.file_key,
+        bucket=settings.AWS_BUCKET_NAME,
     )
 
 

@@ -5,5 +5,5 @@ pydantic-settings
 sqlalchemy
 boto3
 psycopg2-binary
-python-multipart
 kafka-python
+python-multipart
