@@ -204,7 +204,8 @@ def transcode_to_hls(
                 "2",
             ]
         )
-        var_stream_map = "v:0,a:1 v:2,a:3 v:4,a:5"
+        # var_stream_map indexes are per stream type (video/audio), not global output index.
+        var_stream_map = "v:0,a:0 v:1,a:1 v:2,a:2"
     else:
         cmd.extend(
             [
