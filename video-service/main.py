@@ -55,6 +55,11 @@ def health() -> dict[str, str]:
 def upload_page():
     return FileResponse("frontend/upload.html")
 
+
+@app.get("/player", include_in_schema=False)
+def player_page():
+    return FileResponse("frontend/player.html")
+
 @app.get("/print-envs")
 def print_envs() -> dict[str, str]:
     return {

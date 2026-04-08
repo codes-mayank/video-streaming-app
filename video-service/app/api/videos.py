@@ -1,5 +1,7 @@
 import base64
 import binascii
+import mimetypes
+from pathlib import PurePosixPath
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
 from sqlalchemy import func
@@ -45,10 +47,50 @@ def _require_storage_config() -> None:
 
 
 def _build_playback_url(video: Video) -> str | None:
+    if video.hls_master_key:
+        return f"/videos/{video.id}/hls/master.m3u8"
+    if video.file_key:
+        return f"/videos/{video.id}/file"
+
+    key = video.hls_master_key or video.file_key
     if settings.AWS_PUBLIC_BASE_URL:
-        key = video.hls_master_key or video.file_key
         return f"{settings.AWS_PUBLIC_BASE_URL.rstrip('/')}/{key}"
+    if settings.AWS_ENDPOINT_URL and settings.AWS_BUCKET_NAME:
+        # Fallback for public R2/S3 bucket access when explicit public base URL is not configured.
+        return f"{settings.AWS_ENDPOINT_URL.rstrip('/')}/{settings.AWS_BUCKET_NAME}/{key}"
     return None
+
+
+def _guess_content_type(key: str, fallback: str = "application/octet-stream") -> str:
+    guessed, _ = mimetypes.guess_type(key)
+    return guessed or fallback
+
+
+def _fetch_object_bytes(key: str) -> tuple[bytes, str]:
+    client = get_s3_client()
+    try:
+        obj = client.get_object(Bucket=settings.AWS_BUCKET_NAME, Key=key)
+    except Exception:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Object not found in storage")
+    body = obj["Body"].read()
+    content_type = obj.get("ContentType") or _guess_content_type(key)
+    return body, content_type
+
+
+def _rewrite_hls_playlist(content: str, video_id: int, current_key: str) -> str:
+    base_dir = PurePosixPath(current_key).parent
+    rewritten: list[str] = []
+    for raw_line in content.splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#"):
+            rewritten.append(raw_line)
+            continue
+        if line.startswith("http://") or line.startswith("https://"):
+            rewritten.append(raw_line)
+            continue
+        target_key = str((base_dir / line).as_posix())
+        rewritten.append(f"/videos/{video_id}/hls/object?key={target_key}")
+    return "\n".join(rewritten) + "\n"
 
 #TODO: We also need Database support for transcoder
 @router.post("/upload/initiate", response_model=VideoUploadInitResponse, status_code=status.HTTP_201_CREATED)
@@ -274,6 +316,54 @@ def list_videos(
         items.append(item)
 
     return VideoListResponse(items=items, limit=limit, offset=offset, total=total)
+
+
+@router.get("/{video_id}/hls/master.m3u8")
+def get_hls_master_playlist(video_id: int, db: Session = Depends(get_db)):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    if not video.hls_master_key:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="HLS playlist is not ready yet")
+
+    content_bytes, _ = _fetch_object_bytes(video.hls_master_key)
+    text = content_bytes.decode("utf-8", errors="replace")
+    rewritten = _rewrite_hls_playlist(text, video.id, video.hls_master_key)
+    return Response(content=rewritten, media_type="application/vnd.apple.mpegurl")
+
+
+@router.get("/{video_id}/hls/object")
+def get_hls_object(video_id: int, key: str = Query(..., min_length=1), db: Session = Depends(get_db)):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    if not video.hls_master_key:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="HLS playlist is not ready yet")
+
+    hls_root = str(PurePosixPath(video.hls_master_key).parent.as_posix()).rstrip("/")
+    normalized = str(PurePosixPath(key).as_posix()).lstrip("/")
+    if not normalized.startswith(hls_root + "/") and normalized != hls_root:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid HLS object path")
+
+    content_bytes, content_type = _fetch_object_bytes(normalized)
+
+    # Variant playlists also contain relative segment paths; rewrite them to same-origin endpoints.
+    if normalized.lower().endswith(".m3u8"):
+        text = content_bytes.decode("utf-8", errors="replace")
+        rewritten = _rewrite_hls_playlist(text, video.id, normalized)
+        return Response(content=rewritten, media_type="application/vnd.apple.mpegurl")
+
+    return Response(content=content_bytes, media_type=content_type)
+
+
+@router.get("/{video_id}/file")
+def get_raw_video_file(video_id: int, db: Session = Depends(get_db)):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    content_bytes, content_type = _fetch_object_bytes(video.file_key)
+    return Response(content=content_bytes, media_type=content_type)
 
 # TODO: Update this endpoint to not send public url, use streaming response instead
 @router.get("/{video_id}", response_model=VideoResponse)
