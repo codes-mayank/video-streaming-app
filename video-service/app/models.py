@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String, Text, func, text
+from sqlalchemy import Column, DateTime, Integer, String, Text, func, text, Boolean
 from app.database import Base
 
 
@@ -13,6 +13,7 @@ class Video(Base):
     content_type = Column(String(100), nullable=False)
     size_bytes = Column(Integer, nullable=False)
     uploaded_by = Column(String(255), nullable=True)
+    is_deleted = Column(Boolean, nullable=False, server_default=text("false"))
     user_id = Column(String(128), nullable=True, index=True)
     storage_base_prefix = Column(String(512), nullable=True)
     video_basename = Column(String(255), nullable=True)

@@ -1,5 +1,3 @@
-import base64
-import binascii
 import mimetypes
 from pathlib import PurePosixPath
 
@@ -15,7 +13,6 @@ from app.schemas import (
     VideoCompleteUploadResponse,
     VideoListResponse,
     VideoResponse,
-    VideoUploadJsonRequest,
     VideoUploadInitRequest,
     VideoUploadInitResponse,
 )
@@ -24,7 +21,6 @@ from app.services.s3 import (
     generate_presigned_upload_url,
     get_s3_client,
     is_supported_video_content_type,
-    upload_video_bytes,
 )
 from app.services.storage_paths import build_video_object_keys
 from app.services.kafka_queue import try_publish_transcode_job
@@ -48,9 +44,9 @@ def _require_storage_config() -> None:
 
 def _build_playback_url(video: Video) -> str | None:
     if video.hls_master_key:
-        return f"/videos/{video.id}/hls/master.m3u8"
+        return f"/{video.id}/hls/master.m3u8"
     if video.file_key:
-        return f"/videos/{video.id}/file"
+        return f"/{video.id}/file"
 
     key = video.hls_master_key or video.file_key
     if settings.AWS_PUBLIC_BASE_URL:
@@ -89,7 +85,7 @@ def _rewrite_hls_playlist(content: str, video_id: int, current_key: str) -> str:
             rewritten.append(raw_line)
             continue
         target_key = str((base_dir / line).as_posix())
-        rewritten.append(f"/videos/{video_id}/hls/object?key={target_key}")
+        rewritten.append(f"/{video_id}/hls/object?key={target_key}")
     return "\n".join(rewritten) + "\n"
 
 #TODO: We also need Database support for transcoder
@@ -216,67 +212,6 @@ def complete_upload(video_id: int, db: Session = Depends(get_db)):
     )
 
 
-@router.post("/upload-json", response_model=VideoCompleteUploadResponse, status_code=status.HTTP_201_CREATED)
-def upload_json(payload: VideoUploadJsonRequest, db: Session = Depends(get_db)):
-    _require_storage_config()
-    if not is_supported_video_content_type(payload.content_type):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Unsupported content type. Only video files are allowed.",
-        )
-
-    try:
-        file_bytes = base64.b64decode(payload.file_base64, validate=True)
-    except (ValueError, binascii.Error):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid base64 payload")
-
-    if not file_bytes:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Empty file payload")
-
-    raw_key, storage_base_prefix, video_basename = build_video_object_keys(
-        payload.user_id, payload.video_name, payload.content_type
-    )
-    upload_video_bytes(file_key=raw_key, content_type=payload.content_type, data=file_bytes)
-    if not check_object_exists(raw_key):
-        raise HTTPException(
-            status_code=status.HTTP_502_BAD_GATEWAY,
-            detail="Upload to object storage could not be verified.",
-        )
-
-    video = Video(
-        title=payload.title,
-        description=payload.description,
-        file_key=raw_key,
-        status="uploaded",
-        content_type=payload.content_type,
-        size_bytes=len(file_bytes),
-        uploaded_by=payload.uploaded_by,
-        user_id=payload.user_id,
-        storage_base_prefix=storage_base_prefix,
-        video_basename=video_basename,
-    )
-    db.add(video)
-    db.commit()
-    db.refresh(video)
-    queued, qerr = try_publish_transcode_job(
-        video.id,
-        video.file_key,
-        video.content_type,
-        output_base_prefix=video.storage_base_prefix,
-        segment_basename=video.video_basename,
-    )
-
-    return VideoCompleteUploadResponse(
-        id=video.id,
-        status=video.status,
-        file_key=video.file_key,
-        bucket=settings.AWS_BUCKET_NAME,
-        hls_output_prefix=video.storage_base_prefix or f"hls/{video.id}",
-        transcode_job_queued=queued,
-        transcode_queue_error=qerr,
-    )
-
-
 @router.post("/{video_id}/transcode-result", response_model=VideoCompleteUploadResponse)
 def update_transcode_result(video_id: int, payload: TranscodeUpdateRequest, db: Session = Depends(get_db)):
     video = db.query(Video).filter(Video.id == video_id).first()
@@ -300,22 +235,49 @@ def update_transcode_result(video_id: int, payload: TranscodeUpdateRequest, db: 
     )
 
 
+# @router.get("", response_model=VideoListResponse)
+# def list_videos(
+#     limit: int = Query(default=20, ge=1, le=100),
+#     offset: int = Query(default=0, ge=0),
+#     db: Session = Depends(get_db),
+# ):
+#     total = db.query(func.count(Video.id)).scalar() or 0
+#     videos = db.query(Video).order_by(Video.created_at.desc()).offset(offset).limit(limit).all()
+
+#     items = []
+#     for video in videos:
+#         item = VideoResponse.model_validate(video)
+#         item.playback_url = _build_playback_url(video)
+#         items.append(item)
+
+#     return VideoListResponse(items=items, limit=limit, offset=offset, total=total)
+
+
 @router.get("", response_model=VideoListResponse)
 def list_videos(
     limit: int = Query(default=20, ge=1, le=100),
-    offset: int = Query(default=0, ge=0),
+    cursor_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    total = db.query(func.count(Video.id)).scalar() or 0
-    videos = db.query(Video).order_by(Video.created_at.desc()).offset(offset).limit(limit).all()
+    query = db.query(Video).order_by(Video.id).desc()
+
+    if cursor_id:
+        query = query.filter(Video.id < cursor_id)
+    videos = query.limit(limit).all()
 
     items = []
     for video in videos:
         item = VideoResponse.model_validate(video)
         item.playback_url = _build_playback_url(video)
         items.append(item)
+    next_cursor = videos[-1].id if len(videos)==limit else None
 
-    return VideoListResponse(items=items, limit=limit, offset=offset, total=total)
+    return VideoListResponse(
+        items=items,
+        limit=limit,
+        next_cursor=next_cursor,
+        has_more=next_cursor is not None
+    )
 
 
 @router.get("/{video_id}/hls/master.m3u8")

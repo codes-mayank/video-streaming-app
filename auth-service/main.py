@@ -6,9 +6,16 @@ from app.database import engine
 
 from app.api.auth import router as auth_router
 
+from app.database import Base, engine
 
-app = FastAPI(title='blog app')
+def ensure_schema_created() -> None:
+    Base.metadata.create_all(bind=engine)
+
+
+app = FastAPI(title='auth-service')
 origins = [
+    "http://localhost:3000",
+    "http://127.0.0.1:3000",
     "http://localhost:5173",
     "http://127.0.0.1:5173",
 ]
@@ -21,9 +28,12 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-Base.metadata.create_all(bind=engine)
-
+ensure_schema_created()
+# from app.database import Base, engine
 @app.get('/test')
+
+# def ensure_schema_created() -> None:
+#     Base.metadata.create_all(bind=engine)
 def test():
     return {'message': 'Name is Mayank'}
 
@@ -31,5 +41,5 @@ app.include_router(auth_router, prefix='/auth', tags=['Auth'])
 
 @app.get('/')
 def root():
-    return {'message': 'Welcome to the blog site'}
+    return {'message': 'Welcome to the auth-service'}
 

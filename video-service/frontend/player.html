@@ -43,6 +43,9 @@
       <section class="panel">
         <div class="toolbar">
           <button id="refreshBtn" type="button">Refresh</button>
+          <select id="qualitySelect" aria-label="Video quality">
+            <option value="auto">Quality: Auto</option>
+          </select>
         </div>
         <p class="hint">Click a video to start playback from Cloudflare R2.</p>
         <div id="videos" class="videos"></div>
@@ -56,13 +59,74 @@
     </div>
   </main>
 
-  <script src="https://vjs.zencdn.net/8.16.1/video.min.js"></script>
+<script src="https://vjs.zencdn.net/8.16.1/video.min.js"></script>
+<script src="https://unpkg.com/videojs-contrib-quality-levels@3.0.0/dist/videojs-contrib-quality-levels.min.js"></script>
   <script>
     const player = videojs("videoPlayer");
     const videosEl = document.getElementById("videos");
     const statusEl = document.getElementById("status");
     const refreshBtn = document.getElementById("refreshBtn");
+    const qualitySelect = document.getElementById("qualitySelect");
     const nowPlayingEl = document.getElementById("nowPlaying");
+    let qualityLevelsRef = null;
+
+    function resetQualityOptions() {
+      qualitySelect.innerHTML = '<option value="auto">Quality: Auto</option>';
+      qualitySelect.value = "auto";
+      qualitySelect.disabled = true;
+    }
+
+    function qualityLabel(level, index) {
+      if (level.height) return `${level.height}p`;
+      if (level.width) return `${level.width}w`;
+      return `Level ${index + 1}`;
+    }
+
+    function applyQuality(value) {
+      if (!qualityLevelsRef) return;
+      for (let i = 0; i < qualityLevelsRef.length; i += 1) {
+        const level = qualityLevelsRef[i];
+        level.enabled = value === "auto" || String(i) === value;
+      }
+    }
+
+    function syncQualityOptions() {
+      if (!qualityLevelsRef) return;
+      const entries = [];
+      for (let i = 0; i < qualityLevelsRef.length; i += 1) {
+        const level = qualityLevelsRef[i];
+        entries.push({ index: i, height: level.height || 0, bitrate: level.bitrate || 0 });
+      }
+      if (!entries.length) {
+        resetQualityOptions();
+        return;
+      }
+
+      entries.sort((a, b) => (b.height - a.height) || (b.bitrate - a.bitrate));
+      const selected = qualitySelect.value || "auto";
+      qualitySelect.innerHTML = '<option value="auto">Quality: Auto</option>';
+      for (const entry of entries) {
+        const option = document.createElement("option");
+        option.value = String(entry.index);
+        option.textContent = qualityLabel(qualityLevelsRef[entry.index], entry.index);
+        qualitySelect.appendChild(option);
+      }
+      qualitySelect.disabled = false;
+      qualitySelect.value = entries.some((e) => String(e.index) === selected) ? selected : "auto";
+      applyQuality(qualitySelect.value);
+    }
+
+    player.ready(() => {
+      if (typeof player.qualityLevels !== "function") {
+        setStatus("Quality switching unavailable: quality levels plugin failed to load.");
+        return;
+      }
+      qualityLevelsRef = player.qualityLevels();
+      resetQualityOptions();
+      qualityLevelsRef.on("addqualitylevel", syncQualityOptions);
+      player.on("loadedmetadata", syncQualityOptions);
+      player.on("emptied", resetQualityOptions);
+    });
 
     function setStatus(message) {
       statusEl.textContent = message || "";
@@ -105,6 +169,7 @@
       setStatus("");
       nowPlayingEl.textContent = `Now playing: ${video.title} (ID: ${video.id})`;
       player.src(source);
+      resetQualityOptions();
       player.play().catch(() => {});
     }
 
@@ -148,6 +213,10 @@
     }
 
     refreshBtn.addEventListener("click", loadVideos);
+    qualitySelect.addEventListener("change", (event) => {
+      applyQuality(event.target.value);
+    });
+    resetQualityOptions();
     loadVideos();
   </script>
 </body>

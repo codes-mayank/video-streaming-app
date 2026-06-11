@@ -1,9 +1,7 @@
 import boto3
 from botocore.client import Config
 
-from app.core.config import (
-    settings,
-)
+from app.core.config import settings
 
 ALLOWED_VIDEO_CONTENT_TYPES = {
     "video/mp4": "mp4",
@@ -58,13 +56,3 @@ def check_object_exists(file_key: str) -> bool:
 
 def is_supported_video_content_type(content_type: str) -> bool:
     return content_type in ALLOWED_VIDEO_CONTENT_TYPES
-
-
-def upload_video_bytes(file_key: str, content_type: str, data: bytes) -> None:
-    client = get_s3_client()
-    client.put_object(
-        Bucket=settings.AWS_BUCKET_NAME,
-        Key=file_key,
-        Body=data,
-        ContentType=content_type,
-    )

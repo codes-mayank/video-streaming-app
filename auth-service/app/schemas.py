@@ -1,52 +1,14 @@
 from pydantic import BaseModel
 from datetime import datetime
 
-
-# Blog Schemas
-class BlogBase(BaseModel):
-    title: str
-    tag: str
-    body: str
-    featured_photo: str
-
-    class Config:
-        orm_mode = True
-
-
-class BlogCreate(BlogBase):
-    pass
-
-
-class BlogUpdate(BlogBase):
-    pass
-
-
-class BlogOut(BlogBase):
-    id: int
-    slug: str
-    author_id: int
-    created_at: datetime
-    # likes_count: int
-
-
-class BlogOutWithAuthor(BlogBase):
-    id: int
-    slug: str
-    author_id: int
-    tag: str
-    created_at: datetime
-    author_fullname: str
-    author_username: str
-    is_liked: bool = False
-    likes_count: int = 0
-
-
 # Token Schemas
 class Token(BaseModel):
     sub: str
     user_id: int
     email: str
 
+class GoogleLoginRequest(BaseModel):
+    token: str
 
 # User Schemas
 class UserBase(BaseModel):
@@ -67,17 +29,34 @@ class UserInDB(UserBase):
 
 class UserOut(UserBase):
     id: int
+    profile_image_url: str | None = None
 
+    model_config = {
+        "from_attributes": True
+    }
 
+# Profile Image Upload Schemas
+class ProfileImageUploadInitRequest(BaseModel):
+    content_type: str
+
+class ProfileImageUploadInitResponse(BaseModel):
+    file_key: str
+    upload_url: str
+    expires_in_seconds: int
+
+class ProfileImageUploadCompleteRequest(BaseModel):
+    file_key: str
+
+class ProfileImageUploadCompleteResponse(BaseModel):
+    profile_image_url: str
+
+#Edit Profile Schemas
+class EditProfileRequest(BaseModel):
+    username: str | None = None
+    email: str | None = None
+    full_name: str | None = None
+
+# User Login Schemas
 class UserLogin(BaseModel):
     username_or_email: str
     password: str
-
-class LikeResponse(BaseModel):
-    message: str
-    blog_id: int
-    likes_count: int
-    is_liked_by_me: bool
-
-    class Config:
-        from_attributes = True

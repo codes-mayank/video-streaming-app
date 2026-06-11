@@ -35,6 +35,6 @@ def build_video_object_keys(user_id: str, user_video_name: str, content_type: st
     ext = extension_for_content_type(content_type)
     ts = int(time.time() * 1000)
     folder = f"{ts}_{basename}"
-    storage_base_prefix = f"videos/user_{uid}/{folder}"
+    storage_base_prefix = f"user_{uid}/{folder}"
     raw_key = f"{storage_base_prefix}/raw/{basename}.{ext}"
     return raw_key, storage_base_prefix, basename

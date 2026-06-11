@@ -2,11 +2,12 @@ fastapi
 uvicorn
 pydantic
 sqlalchemy
-pymysql
+psycopg2-binary
 pydantic-settings
-passlib
+passlib[bcrypt]
 python-jose
 python-jose[cryptography]
 google-auth
 google-auth-oauthlib
 python-multipart
+boto3

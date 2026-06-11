@@ -61,23 +61,8 @@ class VideoResponse(BaseModel):
 class VideoListResponse(BaseModel):
     items: list[VideoResponse]
     limit: int
-    offset: int
-    total: int
-
-
-class VideoUploadJsonRequest(BaseModel):
-    title: str = Field(..., min_length=1, max_length=255)
-    description: str | None = None
-    content_type: str = Field(..., min_length=1, max_length=100)
-    file_base64: str = Field(..., min_length=1)
-    user_id: str = Field(..., min_length=1, max_length=128)
-    video_name: str = Field(
-        ...,
-        min_length=1,
-        max_length=200,
-        description="User-facing filename base (no extension); used in object key paths.",
-    )
-    uploaded_by: str | None = Field(default=None, max_length=255)
+    next_cursor: int | None
+    has_more: bool
 
 
 class TranscodeUpdateRequest(BaseModel):

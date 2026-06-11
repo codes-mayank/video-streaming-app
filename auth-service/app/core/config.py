@@ -4,7 +4,15 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql+psycopg2://root:root@localhost/test"
+    DATABASE_URL: str = "postgresql+psycopg2://root:root@localhost/video_stream_app"
+
+    AWS_ACCESS_KEY_ID: str = ""
+    AWS_SECRET_ACCESS_KEY: str = ""
+    AWS_ENDPOINT_URL: str = ""
+    AWS_REGION: str = "auto"
+    AWS_BUCKET_NAME: str = "videos"
+    AWS_PRESIGNED_EXPIRES_SECONDS: int = 900
+    AWS_PUBLIC_BASE_URL: str = ""
 
     # App Settings
     APP_NAME: str = "FastAPI App Backend"

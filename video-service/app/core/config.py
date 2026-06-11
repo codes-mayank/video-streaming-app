@@ -5,7 +5,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "video-service"
     DEBUG: bool = False
 
-    DATABASE_URL: str = "postgresql+psycopg2://root:root@localhost/video_stream_app"
+    DATABASE_URL: str = ""
 
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
