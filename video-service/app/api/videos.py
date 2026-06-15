@@ -259,7 +259,7 @@ def list_videos(
     cursor_id: int | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
-    query = db.query(Video).order_by(Video.id).desc()
+    query = db.query(Video).order_by(Video.id.desc())
 
     if cursor_id:
         query = query.filter(Video.id < cursor_id)

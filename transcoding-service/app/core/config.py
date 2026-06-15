@@ -1,4 +1,9 @@
+import tempfile
+from pathlib import Path
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+_DEFAULT_TRANSCODE_WORKDIR = str(Path(tempfile.gettempdir()) / "video-transcoder")
 
 
 class Settings(BaseSettings):
@@ -15,7 +20,7 @@ class Settings(BaseSettings):
 
     FFMPEG_BINARY: str = "ffmpeg"
     FFPROBE_BINARY: str = "ffprobe"
-    TRANSCODE_WORKDIR: str = "/tmp/video-transcoder"
+    TRANSCODE_WORKDIR: str = _DEFAULT_TRANSCODE_WORKDIR
     # HLS segment length in seconds (smaller = more .ts chunk files, faster start).
     HLS_SEGMENT_SECONDS: int = 4
 

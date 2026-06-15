@@ -5,7 +5,18 @@
 .env.test.local
 .env.production.local
 
-**.venv
+# Python virtual environments (never copy between OSes)
+.venv/
+venv/
+**/.venv/
+**/venv/
 
-**pycache__
+# Python cache
+__pycache__/
 *.pyc
+.mypy_cache/
+
+# Node / Next.js (platform-specific native binaries)
+node_modules/
+.next/
+out/

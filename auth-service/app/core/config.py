@@ -4,7 +4,7 @@ from typing import Optional
 
 class Settings(BaseSettings):
     # Database
-    DATABASE_URL: str = "postgresql+psycopg2://root:root@localhost/video_stream_app"
+    DATABASE_URL: str = "postgresql+psycopg2://mayank:root@localhost/video_stream_app"
 
     AWS_ACCESS_KEY_ID: str = ""
     AWS_SECRET_ACCESS_KEY: str = ""
