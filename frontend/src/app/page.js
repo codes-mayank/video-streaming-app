@@ -7,7 +7,6 @@ export default function Home() {
     <MainLayout>
       <CategoryFilter />
       <VideoSection title="Trending Videos" />
-      <VideoSection title="Recommended Videos" />
     </MainLayout>
   );
 }

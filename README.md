@@ -217,7 +217,7 @@ Upload → Complete → Kafka job → FFmpeg transcode → HLS to R2 → Ready f
 
 Object storage layout:
 ```
-user_{id}/{timestamp}_{name}/
+users/{user_id}/{timestamp}_{name}/
   raw/{name}.mp4
   1080p/{name}.m3u8, {name}_000.ts, …
   720p/…

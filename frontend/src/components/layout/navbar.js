@@ -2,25 +2,34 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import { Search, Bell, Upload } from "lucide-react";
+import { Search, Upload } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
+import { useRouter, useSearchParams } from "next/navigation";
 
 export default function Navbar() {
   const [user, setUser] = useState(null);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const [searchQuery, setSearchQuery] = useState(searchParams.get("query") ?? "");
 
   useEffect(() => {
     getCurrentUser().then(setUser).catch(() => setUser(null));
   }, []);
+  useEffect(() =>{
+    setSearchQuery(searchParams.get("query") ?? "");
+  }, [searchParams]);
+
+  function handleSearch(e) {
+    e.preventDefault();
+    router.push(`/search?query=${searchQuery}`);
+  }
 
   return (
-    <header className="sticky top-0 right-0 z-20 mx-auto bg-white/60 backdrop-blur-xl border-b border-white/30 h-20 px-8 flex items-center gap-4">
-      <div className="flex-1 flex items-center gap-3 max-w-xl">
+    <header className="sticky top-0 right-0 z-20  bg-white/60 backdrop-blur-xl border-b border-white/30 h-20 px-8 flex justify-between gap-4">
+      <div className="flex items-center gap-3 max-w-xl">
         <Search size={18} />
-        <input type="text" placeholder="Search" className="cursor-text bg-transparent outline-none flex-1" />
+        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onSubmit={handleSearch} onKeyDown={(e) => e.key === "Enter" && handleSearch(e)} placeholder="Search" className="cursor-text bg-gray-100 rounded-full px-4 py-2 outline-none flex-1" />
       </div>
-      <button className="cursor-pointer p-2 rounded-full hover:bg-white/10 transition-colors">
-        <Bell size={18} />
-      </button>
       {user ? (
         <Link
           href="/upload"

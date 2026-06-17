@@ -23,7 +23,7 @@
     <p>
       Flow: <strong>initiate</strong> → upload bytes to <strong>this API</strong> (same origin, no bucket CORS) or <strong>PUT</strong> the pre-signed URL (needs R2/S3 CORS) → <strong>complete</strong>.
       Objects are stored as
-      <code>videos/user_{user_id}/{timestamp}_{video_name}/raw/{video_name}.{ext}</code>.
+      <code>users/{user_id}/{timestamp}_{video_name}/raw/{video_name}.{ext}</code>.
       After transcoding, HLS appears under the same prefix (e.g. <code>1080p/</code>, <code>720p/</code>, <code>480p/</code>).
     </p>
 

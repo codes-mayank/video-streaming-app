@@ -85,7 +85,7 @@ def _rewrite_hls_playlist(content: str, video_id: int, current_key: str) -> str:
             rewritten.append(raw_line)
             continue
         target_key = str((base_dir / line).as_posix())
-        rewritten.append(f"/{video_id}/hls/object?key={target_key}")
+        rewritten.append(f"/videos/{video_id}/hls/object?key={target_key}")
     return "\n".join(rewritten) + "\n"
 
 #TODO: We also need Database support for transcoder
@@ -127,6 +127,10 @@ def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_d
         expires_in_seconds=settings.AWS_PRESIGNED_EXPIRES_SECONDS,
     )
 
+@router.get("/search")
+def search_videos(query: str = Query(..., min_length=1), db: Session = Depends(get_db)):
+    videos = db.query(Video).filter(Video.title.ilike(f"%{query}%")).order_by(Video.created_at.desc()).all()
+    return [VideoResponse.model_validate(video) for video in videos]
 
 @router.post("/{video_id}/upload", status_code=status.HTTP_204_NO_CONTENT)
 async def upload_file_to_storage(

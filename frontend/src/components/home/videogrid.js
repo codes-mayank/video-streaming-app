@@ -16,7 +16,7 @@ function toCardProps(video) {
   };
 }
 
-export default function VideoGrid() {
+export default function VideoGrid({ query }) {
   const [videos, setVideos] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);

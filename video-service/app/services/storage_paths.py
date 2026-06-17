@@ -27,14 +27,14 @@ def build_video_object_keys(user_id: str, user_video_name: str, content_type: st
     Returns (raw_object_key, storage_base_prefix, video_basename).
 
     Layout:
-      {storage_base_prefix}/raw/{video_basename}.{ext}
-      {storage_base_prefix}/720p/... (written by transcoder)
+      users/{user_id}/{timestamp}_{video_basename}/raw/{video_basename}.{ext}
+      users/{user_id}/{timestamp}_{video_basename}/1080p/... (written by transcoder)
     """
     basename = slugify(user_video_name, max_len=200)
     uid = safe_user_id_for_path(user_id)
     ext = extension_for_content_type(content_type)
     ts = int(time.time() * 1000)
     folder = f"{ts}_{basename}"
-    storage_base_prefix = f"user_{uid}/{folder}"
+    storage_base_prefix = f"users/{uid}/{folder}"
     raw_key = f"{storage_base_prefix}/raw/{basename}.{ext}"
     return raw_key, storage_base_prefix, basename

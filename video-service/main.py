@@ -65,15 +65,3 @@ def upload_page():
 @app.get("/player", include_in_schema=False)
 def player_page():
     return FileResponse("frontend/player.html")
-
-@app.get("/print-envs")
-def print_envs() -> dict[str, str]:
-    return {
-        "AWS_ACCESS_KEY_ID": settings.AWS_ACCESS_KEY_ID,
-        "AWS_SECRET_ACCESS_KEY": settings.AWS_SECRET_ACCESS_KEY,
-        "AWS_ENDPOINT_URL": settings.AWS_ENDPOINT_URL,
-        "AWS_REGION": settings.AWS_REGION,
-        "AWS_BUCKET_NAME": settings.AWS_BUCKET_NAME,
-        "AWS_PRESIGNED_EXPIRES_SECONDS": str(settings.AWS_PRESIGNED_EXPIRES_SECONDS),
-        "AWS_PUBLIC_BASE_URL": settings.AWS_PUBLIC_BASE_URL,
-    }
