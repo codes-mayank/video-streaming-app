@@ -40,6 +40,10 @@ def ensure_video_columns() -> None:
         alters.append("ALTER TABLE videos ADD COLUMN storage_base_prefix VARCHAR(512)")
     if "video_basename" not in existing:
         alters.append("ALTER TABLE videos ADD COLUMN video_basename VARCHAR(255)")
+    if "thumbnail_key" not in existing:
+        alters.append("ALTER TABLE videos ADD COLUMN thumbnail_key VARCHAR(500)")
+    if "thumbnail_content_type" not in existing:
+        alters.append("ALTER TABLE videos ADD COLUMN thumbnail_content_type VARCHAR(100)")
     if alters:
         with engine.begin() as conn:
             for sql in alters:

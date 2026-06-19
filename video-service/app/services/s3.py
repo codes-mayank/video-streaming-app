@@ -11,6 +11,12 @@ ALLOWED_VIDEO_CONTENT_TYPES = {
     "video/mpeg": "mpeg",
 }
 
+ALLOWED_THUMBNAIL_CONTENT_TYPES = {
+    "image/jpeg": "jpg",
+    "image/png": "png",
+    "image/webp": "webp",
+}
+
 
 def get_s3_client():
     return boto3.client(
@@ -56,3 +62,13 @@ def check_object_exists(file_key: str) -> bool:
 
 def is_supported_video_content_type(content_type: str) -> bool:
     return content_type in ALLOWED_VIDEO_CONTENT_TYPES
+
+
+def is_supported_thumbnail_content_type(content_type: str) -> bool:
+    return content_type in ALLOWED_THUMBNAIL_CONTENT_TYPES
+
+
+def build_public_url(file_key: str) -> str:
+    if settings.AWS_PUBLIC_BASE_URL:
+        return f"{settings.AWS_PUBLIC_BASE_URL.rstrip('/')}/{file_key}"
+    return generate_presigned_download_url(file_key, expires_seconds=86400 * 7)

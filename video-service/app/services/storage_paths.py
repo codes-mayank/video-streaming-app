@@ -2,7 +2,7 @@ import re
 import time
 from unicodedata import normalize
 
-from app.services.s3 import ALLOWED_VIDEO_CONTENT_TYPES
+from app.services.s3 import ALLOWED_THUMBNAIL_CONTENT_TYPES, ALLOWED_VIDEO_CONTENT_TYPES
 
 
 def slugify(segment: str, max_len: int = 120) -> str:
@@ -38,3 +38,8 @@ def build_video_object_keys(user_id: str, user_video_name: str, content_type: st
     storage_base_prefix = f"users/{uid}/{folder}"
     raw_key = f"{storage_base_prefix}/raw/{basename}.{ext}"
     return raw_key, storage_base_prefix, basename
+
+
+def build_thumbnail_object_key(storage_base_prefix: str, content_type: str) -> str:
+    ext = ALLOWED_THUMBNAIL_CONTENT_TYPES[content_type]
+    return f"{storage_base_prefix}/thumbnail.{ext}"

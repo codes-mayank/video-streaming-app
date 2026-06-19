@@ -17,12 +17,14 @@ from app.schemas import (
     VideoUploadInitResponse,
 )
 from app.services.s3 import (
+    build_public_url,
     check_object_exists,
     generate_presigned_upload_url,
     get_s3_client,
+    is_supported_thumbnail_content_type,
     is_supported_video_content_type,
 )
-from app.services.storage_paths import build_video_object_keys
+from app.services.storage_paths import build_thumbnail_object_key, build_video_object_keys
 from app.services.kafka_queue import try_publish_transcode_job
 
 router = APIRouter()
@@ -55,6 +57,21 @@ def _build_playback_url(video: Video) -> str | None:
         # Fallback for public R2/S3 bucket access when explicit public base URL is not configured.
         return f"{settings.AWS_ENDPOINT_URL.rstrip('/')}/{settings.AWS_BUCKET_NAME}/{key}"
     return None
+
+
+def _build_thumbnail_url(video: Video) -> str | None:
+    if not video.thumbnail_key:
+        return None
+    if settings.AWS_PUBLIC_BASE_URL:
+        return build_public_url(video.thumbnail_key)
+    return f"/videos/{video.id}/thumbnail"
+
+
+def _enrich_video_response(video: Video) -> VideoResponse:
+    item = VideoResponse.model_validate(video)
+    item.playback_url = _build_playback_url(video)
+    item.thumbnail_url = _build_thumbnail_url(video)
+    return item
 
 
 def _guess_content_type(key: str, fallback: str = "application/octet-stream") -> str:
@@ -97,11 +114,20 @@ def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_d
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported content type. Only video files are allowed.",
         )
+    if not is_supported_thumbnail_content_type(payload.thumbnail_content_type):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Unsupported thumbnail type. Allowed: JPEG, PNG, WebP.",
+        )
 
     raw_key, storage_base_prefix, video_basename = build_video_object_keys(
         payload.user_id, payload.video_name, payload.content_type
     )
+    thumbnail_key = build_thumbnail_object_key(storage_base_prefix, payload.thumbnail_content_type)
     upload_url = generate_presigned_upload_url(file_key=raw_key, content_type=payload.content_type)
+    thumbnail_upload_url = generate_presigned_upload_url(
+        file_key=thumbnail_key, content_type=payload.thumbnail_content_type
+    )
 
     video = Video(
         title=payload.title,
@@ -114,6 +140,8 @@ def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_d
         user_id=payload.user_id,
         storage_base_prefix=storage_base_prefix,
         video_basename=video_basename,
+        thumbnail_key=thumbnail_key,
+        thumbnail_content_type=payload.thumbnail_content_type,
     )
     db.add(video)
     db.commit()
@@ -124,13 +152,15 @@ def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_d
         file_key=raw_key,
         storage_base_prefix=storage_base_prefix,
         upload_url=upload_url,
+        thumbnail_key=thumbnail_key,
+        thumbnail_upload_url=thumbnail_upload_url,
         expires_in_seconds=settings.AWS_PRESIGNED_EXPIRES_SECONDS,
     )
 
 @router.get("/search")
 def search_videos(query: str = Query(..., min_length=1), db: Session = Depends(get_db)):
     videos = db.query(Video).filter(Video.title.ilike(f"%{query}%")).order_by(Video.created_at.desc()).all()
-    return [VideoResponse.model_validate(video) for video in videos]
+    return [_enrich_video_response(video) for video in videos]
 
 @router.post("/{video_id}/upload", status_code=status.HTTP_204_NO_CONTENT)
 async def upload_file_to_storage(
@@ -174,6 +204,49 @@ async def upload_file_to_storage(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+@router.post("/{video_id}/thumbnail/upload", status_code=status.HTTP_204_NO_CONTENT)
+async def upload_thumbnail_to_storage(
+    video_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> Response:
+    _require_storage_config()
+
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    if video.status != "upload_initiated":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Video is not awaiting upload.",
+        )
+    if not video.thumbnail_key or not video.thumbnail_content_type:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Thumbnail upload was not initiated for this video.",
+        )
+
+    incoming_ct = (file.content_type or "").strip()
+    if incoming_ct and incoming_ct != video.thumbnail_content_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Content-Type must match initiate ({video.thumbnail_content_type}).",
+        )
+
+    client = get_s3_client()
+    try:
+        client.upload_fileobj(
+            file.file,
+            settings.AWS_BUCKET_NAME,
+            video.thumbnail_key,
+            ExtraArgs={"ContentType": video.thumbnail_content_type},
+        )
+    finally:
+        await file.close()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
 @router.post("/{video_id}/complete", response_model=VideoCompleteUploadResponse)
 def complete_upload(video_id: int, db: Session = Depends(get_db)):
     _require_storage_config()
@@ -186,6 +259,11 @@ def complete_upload(video_id: int, db: Session = Depends(get_db)):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Upload not found in object storage. Ensure client uploaded the file.",
+        )
+    if not video.thumbnail_key or not check_object_exists(video.thumbnail_key):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Thumbnail not found in object storage. Ensure client uploaded the thumbnail.",
         )
     if not is_supported_video_content_type(video.content_type):
         raise HTTPException(
@@ -271,9 +349,7 @@ def list_videos(
 
     items = []
     for video in videos:
-        item = VideoResponse.model_validate(video)
-        item.playback_url = _build_playback_url(video)
-        items.append(item)
+        items.append(_enrich_video_response(video))
     next_cursor = videos[-1].id if len(videos)==limit else None
 
     return VideoListResponse(
@@ -331,6 +407,18 @@ def get_raw_video_file(video_id: int, db: Session = Depends(get_db)):
     content_bytes, content_type = _fetch_object_bytes(video.file_key)
     return Response(content=content_bytes, media_type=content_type)
 
+
+@router.get("/{video_id}/thumbnail")
+def get_video_thumbnail(video_id: int, db: Session = Depends(get_db)):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    if not video.thumbnail_key:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thumbnail not found")
+
+    content_bytes, content_type = _fetch_object_bytes(video.thumbnail_key)
+    return Response(content=content_bytes, media_type=content_type)
+
 # TODO: Update this endpoint to not send public url, use streaming response instead
 @router.get("/{video_id}", response_model=VideoResponse)
 def get_video(video_id: int, db: Session = Depends(get_db)):
@@ -338,9 +426,7 @@ def get_video(video_id: int, db: Session = Depends(get_db)):
     if not video:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
 
-    response = VideoResponse.model_validate(video)
-    response.playback_url = _build_playback_url(video)
-    return response
+    return _enrich_video_response(video)
 
 #TODO: We can remove it as we do not want download functionality
 # @router.get("/{video_id}/download-url")

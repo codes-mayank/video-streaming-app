@@ -16,6 +16,8 @@ class VideoUploadInitRequest(BaseModel):
         description="User-facing filename base (no extension); used in object key paths.",
     )
     uploaded_by: str | None = Field(default=None, max_length=255)
+    thumbnail_content_type: str = Field(..., min_length=1, max_length=100)
+    thumbnail_size_bytes: int = Field(..., gt=0)
 
 
 class VideoUploadInitResponse(BaseModel):
@@ -23,6 +25,8 @@ class VideoUploadInitResponse(BaseModel):
     file_key: str
     storage_base_prefix: str
     upload_url: str
+    thumbnail_key: str
+    thumbnail_upload_url: str
     expires_in_seconds: int
 
 
@@ -51,9 +55,12 @@ class VideoResponse(BaseModel):
     video_basename: str | None = None
     hls_master_key: str | None = None
     hls_prefix: str | None = None
+    thumbnail_key: str | None = None
+    thumbnail_content_type: str | None = None
     created_at: datetime
     updated_at: datetime
     playback_url: str | None = None
+    thumbnail_url: str | None = None
 
     model_config = {"from_attributes": True}
 

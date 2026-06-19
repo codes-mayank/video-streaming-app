@@ -126,17 +126,6 @@ function LoginForm() {
           </div>
         </div>
 
-        <label className="flex cursor-pointer items-center gap-2 text-sm text-gray-600">
-          <input
-            type="checkbox"
-            checked={rememberMe}
-            onChange={(e) => setRememberMe(e.target.checked)}
-            className="rounded border-white/30"
-            disabled={loading}
-          />
-          Remember me
-        </label>
-
         {error && (
           <p className="rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">{error}</p>
         )}

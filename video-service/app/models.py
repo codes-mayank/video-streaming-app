@@ -19,5 +19,7 @@ class Video(Base):
     video_basename = Column(String(255), nullable=True)
     hls_master_key = Column(String(500), nullable=True)
     hls_prefix = Column(String(500), nullable=True)
+    thumbnail_key = Column(String(500), nullable=True)
+    thumbnail_content_type = Column(String(100), nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)

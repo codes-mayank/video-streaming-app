@@ -14,6 +14,8 @@ export default function UploadPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [file, setFile] = useState(null);
+  const [thumbnailFile, setThumbnailFile] = useState(null);
+  const [thumbnailPreview, setThumbnailPreview] = useState(null);
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
   const [uploading, setUploading] = useState(false);
@@ -24,6 +26,18 @@ export default function UploadPage() {
       else setUser(u);
     });
   }, [router]);
+
+  useEffect(() => {
+    if (!thumbnailFile) {
+      setThumbnailPreview(null);
+      return;
+    }
+
+    const objectUrl = URL.createObjectURL(thumbnailFile);
+    setThumbnailPreview(objectUrl);
+
+    return () => URL.revokeObjectURL(objectUrl);
+  }, [thumbnailFile]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -38,15 +52,24 @@ export default function UploadPage() {
       setError("Only video files are allowed.");
       return;
     }
+    if (!thumbnailFile) {
+      setError("Please choose a thumbnail image.");
+      return;
+    }
+    if (!thumbnailFile.type.startsWith("image/")) {
+      setError("Thumbnail must be an image (JPEG, PNG, or WebP).");
+      return;
+    }
 
     setUploading(true);
-    setStatus("Uploading…");
+    setStatus("Uploading video and thumbnail…");
 
     try {
       const result = await uploadVideo({
         title: title.trim(),
         description: description.trim(),
         file,
+        thumbnailFile,
         userId: user.id,
         uploadedBy: user.username,
       });
@@ -94,7 +117,7 @@ export default function UploadPage() {
               onChange={(e) => setTitle(e.target.value)}
               required
               placeholder="Enter title"
-              className="w-full rounded-lg border border-white/40 bg-white/40 px-3 py-2 outline-none"
+              className="w-full rounded-lg border border-black/40 bg-white/40 px-3 py-2 outline-none"
             />
           </div>
 
@@ -105,7 +128,7 @@ export default function UploadPage() {
               onChange={(e) => setDescription(e.target.value)}
               rows={3}
               placeholder="Enter description"
-              className="w-full rounded-lg border border-white/40 bg-white/40 px-3 py-2 outline-none resize-vertical"
+              className="w-full rounded-lg border border-black/40 bg-white/40 px-3 py-2 outline-none resize-vertical"
             />
           </div>
 
@@ -116,8 +139,29 @@ export default function UploadPage() {
               accept="video/*"
               onChange={(e) => setFile(e.target.files?.[0] ?? null)}
               required
-              className="w-full text-sm"
+              className="w-full text-sm bg-gray-500/40 rounded-lg border border-black/40 px-3 py-2 outline-none"
             />
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium mb-1">Thumbnail</label>
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/webp"
+              onChange={(e) => setThumbnailFile(e.target.files?.[0] ?? null)}
+              required
+              className="w-full text-sm bg-gray-500/40 rounded-lg border border-black/40 px-3 py-2 outline-none"
+            />
+            <p className="mt-1 text-xs text-gray-500">JPEG, PNG, or WebP. Shown on the home page and search results.</p>
+            {thumbnailPreview && (
+              <div className="mt-3 overflow-hidden rounded-lg border border-white/30 bg-white/20">
+                <img
+                  src={thumbnailPreview}
+                  alt="Thumbnail preview"
+                  className="aspect-video w-full object-cover"
+                />
+              </div>
+            )}
           </div>
 
           {error && <p className="text-red-500 text-sm">{error}</p>}

@@ -2,15 +2,16 @@
 
 import { useEffect, useState } from "react";
 import VideoCard from "../video/videocard";
-import { getVideos } from "@/lib/video";
+import { getVideos, getThumbnailUrl } from "@/lib/video";
+
+const FALLBACK_THUMBNAIL =
+  "https://placehold.co/640x360/e2e8f0/64748b?text=Video";
 
 function toCardProps(video) {
   return {
     id: video.id,
     title: video.title,
-    thumbnail:
-      video.thumbnail ??
-      "https://placehold.co/640x360/e2e8f0/64748b?text=Video",
+    thumbnail: getThumbnailUrl(video.thumbnail_url) ?? FALLBACK_THUMBNAIL,
     creator: video.uploaded_by ?? "Unknown",
     views: video.views ?? 0,
   };

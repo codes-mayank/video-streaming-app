@@ -4,14 +4,17 @@ import { Suspense, useEffect, useState } from "react";
 import { useSearchParams } from "next/navigation";
 import MainLayout from "@/components/layout/mainLayout";
 import VideoCard from "@/components/video/videocard";
-import { searchVideos } from "@/lib/video";
+import { searchVideos, getThumbnailUrl } from "@/lib/video";
 import { Loader2 } from "lucide-react";
+
+const FALLBACK_THUMBNAIL =
+  "https://placehold.co/640x360/e2e8f0/64748b?text=Video";
 
 function toCardProps(video) {
   return {
     id: video.id,
     title: video.title,
-    thumbnail: video.thumbnail ?? "https://placehold.co/640x360/e2e8f0/64748b?text=Video",
+    thumbnail: getThumbnailUrl(video.thumbnail_url) ?? FALLBACK_THUMBNAIL,
     creator: video.uploaded_by ?? "Unknown",
     views: video.views ?? 0,
   };
