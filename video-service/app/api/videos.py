@@ -6,6 +6,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.categories import DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, normalize_category
 from app.database import get_db
 from app.models import Video
 from app.schemas import (
@@ -142,6 +143,7 @@ def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_d
         video_basename=video_basename,
         thumbnail_key=thumbnail_key,
         thumbnail_content_type=payload.thumbnail_content_type,
+        category=payload.category,
     )
     db.add(video)
     db.commit()
@@ -157,10 +159,25 @@ def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_d
         expires_in_seconds=settings.AWS_PRESIGNED_EXPIRES_SECONDS,
     )
 
+@router.get("/categories")
+def list_categories() -> dict[str, list[str]]:
+    return {
+        "categories": list(VIDEO_CATEGORIES),
+        "default": DEFAULT_VIDEO_CATEGORY,
+    }
+
+
 @router.get("/search")
 def search_videos(query: str = Query(..., min_length=1), db: Session = Depends(get_db)):
     videos = db.query(Video).filter(Video.title.ilike(f"%{query}%")).order_by(Video.created_at.desc()).all()
     return [_enrich_video_response(video) for video in videos]
+
+@router.get("/latest", response_model=VideoResponse | None)
+def get_latest_video(db: Session = Depends(get_db)):
+    video = db.query(Video).order_by(Video.created_at.desc()).first()
+    if not video:
+        return None
+    return _enrich_video_response(video)
 
 @router.post("/{video_id}/upload", status_code=status.HTTP_204_NO_CONTENT)
 async def upload_file_to_storage(
@@ -339,9 +356,17 @@ def update_transcode_result(video_id: int, payload: TranscodeUpdateRequest, db: 
 def list_videos(
     limit: int = Query(default=20, ge=1, le=100),
     cursor_id: int | None = Query(default=None),
+    category: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
     query = db.query(Video).order_by(Video.id.desc())
+
+    if category:
+        try:
+            normalized = normalize_category(category)
+        except ValueError as exc:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+        query = query.filter(Video.category == normalized)
 
     if cursor_id:
         query = query.filter(Video.id < cursor_id)

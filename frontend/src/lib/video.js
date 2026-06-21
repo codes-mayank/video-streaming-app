@@ -28,8 +28,23 @@ export async function searchVideos(query) {
   return res.json();
 }
 
-export async function getVideos() {
-  const res = await fetch(`${API_BASE}/videos`, { cache: "no-store" });
+export async function getLatestVideo() {
+  const res = await fetch(`${API_BASE}/videos/latest`, { cache: "no-store" });
+  if (res.status === 404) return null;
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  const data = await res.json();
+  return Array.isArray(data) ? data[0] ?? null : data;
+}
+
+export async function getVideos({ category } = {}) {
+  const params = new URLSearchParams();
+  if (category) params.set("category", category);
+
+  const query = params.toString();
+  const url = query ? `${API_BASE}/videos?${query}` : `${API_BASE}/videos`;
+  const res = await fetch(url, { cache: "no-store" });
 
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
@@ -116,7 +131,15 @@ export function getThumbnailUrl(thumbnailUrl) {
   return `${API_BASE}${thumbnailUrl}`;
 }
 
-export async function uploadVideo({ title, description, file, thumbnailFile, userId, uploadedBy }) {
+export async function uploadVideo({
+  title,
+  description,
+  file,
+  thumbnailFile,
+  userId,
+  uploadedBy,
+  category = "other",
+}) {
   const videoName = (file.name.replace(/\.[^/.]+$/, "") || title).slice(0, 200);
   const contentType = guessContentType(file);
   const thumbnailContentType = guessImageContentType(thumbnailFile);
@@ -134,6 +157,7 @@ export async function uploadVideo({ title, description, file, thumbnailFile, use
       uploaded_by: uploadedBy || null,
       thumbnail_content_type: thumbnailContentType,
       thumbnail_size_bytes: thumbnailFile.size,
+      category,
     }),
   });
 

@@ -9,7 +9,7 @@
     .container { max-width: 720px; margin: 40px auto; background: #fff; padding: 24px; border-radius: 12px; box-shadow: 0 8px 30px rgba(0,0,0,.08); }
     h1 { margin-top: 0; }
     label { display: block; margin: 12px 0 6px; font-weight: 600; }
-    input, textarea, button { width: 100%; padding: 10px; box-sizing: border-box; }
+    input, textarea, button, select { width: 100%; padding: 10px; box-sizing: border-box; }
     textarea { min-height: 90px; resize: vertical; }
     button { margin-top: 16px; background: #1d4ed8; color: #fff; border: 0; border-radius: 8px; cursor: pointer; }
     button:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -41,6 +41,16 @@
 
     <label for="uploadedBy">Uploaded By (optional)</label>
     <input id="uploadedBy" type="text" placeholder="username or user id" />
+
+    <label for="category">Category</label>
+    <select id="category">
+      <option value="gaming">Gaming</option>
+      <option value="music">Music</option>
+      <option value="tech">Tech</option>
+      <option value="education">Education</option>
+      <option value="sports">Sports</option>
+      <option value="other" selected>Other</option>
+    </select>
 
     <label for="file">Video File</label>
     <input id="file" type="file" accept="video/*" required />
@@ -119,6 +129,7 @@
             uploaded_by: uploadedBy || null,
             thumbnail_content_type: thumbnail.type,
             thumbnail_size_bytes: thumbnail.size,
+            category: document.getElementById("category").value || "other",
           })
         });
 

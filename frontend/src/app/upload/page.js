@@ -7,12 +7,14 @@ import MainLayout from "@/components/layout/mainLayout";
 import GlassCard from "@/components/ui/glasscard";
 import { getCurrentUser } from "@/lib/auth";
 import { uploadVideo } from "@/lib/video";
+import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES } from "@/lib/categories";
 
 export default function UploadPage() {
   const router = useRouter();
   const [user, setUser] = useState(null);
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
+  const [category, setCategory] = useState(DEFAULT_VIDEO_CATEGORY);
   const [file, setFile] = useState(null);
   const [thumbnailFile, setThumbnailFile] = useState(null);
   const [thumbnailPreview, setThumbnailPreview] = useState(null);
@@ -72,6 +74,7 @@ export default function UploadPage() {
         thumbnailFile,
         userId: user.id,
         uploadedBy: user.username,
+        category,
       });
 
       if (result.transcode_job_queued === false) {
@@ -130,6 +133,24 @@ export default function UploadPage() {
               placeholder="Enter description"
               className="w-full rounded-lg border border-black/40 bg-white/40 px-3 py-2 outline-none resize-vertical"
             />
+          </div>
+
+          <div>
+            <label htmlFor="category" className="block text-sm font-medium mb-1">
+              Category
+            </label>
+            <select
+              id="category"
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="w-full rounded-lg border border-black/40 bg-white/40 px-3 py-2 outline-none"
+            >
+              {VIDEO_CATEGORIES.map(({ value, label }) => (
+                <option key={value} value={value}>
+                  {label}
+                </option>
+              ))}
+            </select>
           </div>
 
           <div>

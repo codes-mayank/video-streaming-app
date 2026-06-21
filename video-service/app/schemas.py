@@ -1,6 +1,8 @@
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+from app.categories import DEFAULT_VIDEO_CATEGORY, normalize_category
 
 
 class VideoUploadInitRequest(BaseModel):
@@ -18,6 +20,12 @@ class VideoUploadInitRequest(BaseModel):
     uploaded_by: str | None = Field(default=None, max_length=255)
     thumbnail_content_type: str = Field(..., min_length=1, max_length=100)
     thumbnail_size_bytes: int = Field(..., gt=0)
+    category: str = Field(default=DEFAULT_VIDEO_CATEGORY, max_length=50)
+
+    @field_validator("category")
+    @classmethod
+    def validate_category(cls, value: str) -> str:
+        return normalize_category(value)
 
 
 class VideoUploadInitResponse(BaseModel):
@@ -57,6 +65,7 @@ class VideoResponse(BaseModel):
     hls_prefix: str | None = None
     thumbnail_key: str | None = None
     thumbnail_content_type: str | None = None
+    category: str = DEFAULT_VIDEO_CATEGORY
     created_at: datetime
     updated_at: datetime
     playback_url: str | None = None

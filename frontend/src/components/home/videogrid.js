@@ -17,15 +17,16 @@ function toCardProps(video) {
   };
 }
 
-export default function VideoGrid({ query }) {
+export default function VideoGrid({ category }) {
   const [videos, setVideos] = useState([]);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    getVideos()
+    setLoading(true);
+    setError(null);
+    getVideos({ category })
       .then((data) => {
-        console.log(data);
         setVideos((data.items ?? []).map(toCardProps));
       })
       .catch((err) => {
@@ -33,7 +34,7 @@ export default function VideoGrid({ query }) {
         setError(err.message);
       })
       .finally(() => setLoading(false));
-  }, []);
+  }, [category]);
 
   if (loading) {
     return <p className="text-gray-500">Loading videos...</p>;

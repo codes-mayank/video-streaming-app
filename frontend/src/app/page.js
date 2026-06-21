@@ -1,12 +1,21 @@
+"use client";
+
+import { useState } from "react";
 import MainLayout from "@/components/layout/mainLayout";
 import VideoSection from "@/components/home/videosection";
 import CategoryFilter from "@/components/home/categoryfilter";
+import Latest from "@/components/layout/latest";
+import { categoryLabelToValue } from "@/lib/categories";
 
 export default function Home() {
+  const [selectedCategory, setSelectedCategory] = useState("All");
+  const categoryFilter = categoryLabelToValue(selectedCategory);
+
   return (
     <MainLayout>
-      <CategoryFilter />
-      <VideoSection title="Trending Videos" />
+      <Latest />
+      <CategoryFilter selected={selectedCategory} onSelect={setSelectedCategory} />
+      <VideoSection title="Trending Videos" category={categoryFilter} />
     </MainLayout>
   );
 }
