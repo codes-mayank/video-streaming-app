@@ -28,7 +28,7 @@ export default function Navbar() {
     <header className="sticky top-0 right-0 z-20  bg-white/60 backdrop-blur-xl border-b border-white/30 h-20 px-8 flex justify-between gap-3">
       <div className="flex items-center gap-3 max-w-xl w-full">
         <Search size={18} />
-        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onSubmit={handleSearch} onKeyDown={(e) => e.key === "Enter" && handleSearch(e)} placeholder="Search" className="cursor-text bg-gray-100 w-full rounded-full px-4 py-2 outline-none flex-1" />
+        <input type="text" value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} onSubmit={handleSearch} onKeyDown={(e) => e.key === "Enter" && handleSearch(e)} placeholder="Search" className="cursor-text bg-gray-100/60 w-full rounded-full px-4 py-2 outline-none flex-1" />
       </div>
       {user ? (
         <Link
