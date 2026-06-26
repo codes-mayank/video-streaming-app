@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import MainLayout from "@/components/layout/mainLayout";
@@ -18,7 +18,16 @@ export default function WatchPage() {
       .catch((err) => setError(err.message));
   }, [id]);
 
-  const source = video ? getPlaybackSource(video.playback_url) : null;
+  const playbackUrl = video?.playback_url ?? null;
+  const playerOptions = useMemo(() => {
+    const source = playbackUrl ? getPlaybackSource(playbackUrl) : null;
+    return {
+      controls: true,
+      fluid: true,
+      autoplay: true,
+      sources: source ? [source] : [],
+    };
+  }, [playbackUrl]);
 
   return (
     <MainLayout>
@@ -32,15 +41,8 @@ export default function WatchPage() {
       {video && (
         <div className="mt-4 max-w-4xl">
           <h1 className="text-2xl font-bold mb-4">{video.title}</h1>
-          {source ? (
-            <VideoPlayer
-              options={{
-                controls: true,
-                fluid: true,
-                autoplay: true,
-                sources: [source],
-              }}
-            />
+          {playbackUrl ? (
+            <VideoPlayer key={id} options={playerOptions} />
           ) : (
             <p className="text-gray-500">
               This video is not ready for playback yet. Wait for transcoding to finish.
