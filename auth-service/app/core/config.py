@@ -1,8 +1,14 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 from typing import Optional
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
     # Database
     DATABASE_URL: str = "postgresql+psycopg2://mayank:root@localhost/video_stream_app"
 
@@ -24,10 +30,6 @@ class Settings(BaseSettings):
 
     ACCESS_TOKEN_COOKIE_NAME: str = "access_token"
     GOOGLE_CLIENT_ID: Optional[str] = None
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 settings = Settings()

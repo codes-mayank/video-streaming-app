@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import Link from "next/link";
 import MainLayout from "@/components/layout/mainLayout";
 import VideoPlayer from "@/components/auth/videoplayer";
+import LikeButton from "@/components/video/likebutton";
 import { getVideo, getPlaybackSource } from "@/lib/video";
 
 export default function WatchPage() {
@@ -40,7 +41,14 @@ export default function WatchPage() {
 
       {video && (
         <div className="mt-4 max-w-4xl">
-          <h1 className="text-2xl font-bold mb-4">{video.title}</h1>
+          <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+            <h1 className="text-2xl font-bold">{video.title}</h1>
+            <LikeButton
+              videoId={video.id}
+              initialCount={video.like_count ?? 0}
+              initialLiked={Boolean(video.liked)}
+            />
+          </div>
           {playbackUrl ? (
             <VideoPlayer key={id} options={playerOptions} />
           ) : (

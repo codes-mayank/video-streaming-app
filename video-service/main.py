@@ -52,8 +52,39 @@ def ensure_video_columns() -> None:
                 conn.execute(text(sql))
 
 
+def ensure_video_likes_table() -> None:
+    inspector = inspect(engine)
+    if "video_likes" in inspector.get_table_names():
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE video_likes (
+                    user_id INTEGER NOT NULL,
+                    video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    PRIMARY KEY (user_id, video_id)
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX idx_video_likes_video_id ON video_likes (video_id)"))
+        if "users" in inspector.get_table_names():
+            conn.execute(
+                text(
+                    """
+                    ALTER TABLE video_likes
+                    ADD CONSTRAINT fk_video_likes_user
+                    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+                    """
+                )
+            )
+
+
 ensure_schema_created()
 ensure_video_columns()
+ensure_video_likes_table()
 
 app.include_router(videos_router, prefix='/videos', tags=["Videos"])
 

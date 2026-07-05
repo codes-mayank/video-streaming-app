@@ -1,15 +1,17 @@
 import mimetypes
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
+from app.core.security import get_current_user, get_current_user_optional
 from app.categories import DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, normalize_category
 from app.database import get_db
-from app.models import Video
+from app.models import Video, VideoLike
 from app.schemas import (
+    LikeStatusResponse,
     TranscodeUpdateRequest,
     VideoCompleteUploadResponse,
     VideoListResponse,
@@ -68,11 +70,67 @@ def _build_thumbnail_url(video: Video) -> str | None:
     return f"/videos/{video.id}/thumbnail"
 
 
-def _enrich_video_response(video: Video) -> VideoResponse:
+def _like_counts_for_videos(db: Session, video_ids: list[int]) -> dict[int, int]:
+    if not video_ids:
+        return {}
+    rows = (
+        db.query(VideoLike.video_id, func.count(VideoLike.user_id))
+        .filter(VideoLike.video_id.in_(video_ids))
+        .group_by(VideoLike.video_id)
+        .all()
+    )
+    return {video_id: count for video_id, count in rows}
+
+
+def _liked_video_ids_for_user(db: Session, user_id: int, video_ids: list[int]) -> set[int]:
+    if not video_ids:
+        return set()
+    rows = (
+        db.query(VideoLike.video_id)
+        .filter(VideoLike.user_id == user_id, VideoLike.video_id.in_(video_ids))
+        .all()
+    )
+    return {row[0] for row in rows}
+
+
+def _get_video_or_404(db: Session, video_id: int) -> Video:
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    return video
+
+
+def _enrich_video_response(
+    video: Video,
+    *,
+    like_count: int = 0,
+    liked: bool | None = None,
+) -> VideoResponse:
     item = VideoResponse.model_validate(video)
     item.playback_url = _build_playback_url(video)
     item.thumbnail_url = _build_thumbnail_url(video)
+    item.like_count = like_count
+    item.liked = liked
     return item
+
+
+def _enrich_videos_batch(
+    db: Session,
+    videos: list[Video],
+    current_user_id: int | None = None,
+) -> list[VideoResponse]:
+    video_ids = [video.id for video in videos]
+    counts = _like_counts_for_videos(db, video_ids)
+    liked_ids = _liked_video_ids_for_user(db, current_user_id, video_ids) if current_user_id else set()
+
+    return [
+        _enrich_video_response(
+            video,
+            like_count=counts.get(video.id, 0),
+            liked=video.id in liked_ids if current_user_id else None,
+        )
+        for video in videos
+    ]
 
 
 def _guess_content_type(key: str, fallback: str = "application/octet-stream") -> str:
@@ -168,16 +226,28 @@ def list_categories() -> dict[str, list[str]]:
 
 
 @router.get("/search")
-def search_videos(query: str = Query(..., min_length=1), db: Session = Depends(get_db)):
-    videos = db.query(Video).filter(Video.title.ilike(f"%{query}%")).order_by(Video.created_at.desc()).all()
-    return [_enrich_video_response(video) for video in videos]
+def search_videos(
+    request: Request,
+    query: str = Query(..., min_length=1),
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user_optional(request)
+    videos = (
+        db.query(Video)
+        .filter(Video.title.ilike(f"%{query}%"))
+        .order_by(Video.created_at.desc())
+        .all()
+    )
+    return _enrich_videos_batch(db, videos, current_user.user_id if current_user else None)
 
 @router.get("/latest", response_model=VideoResponse | None)
-def get_latest_video(db: Session = Depends(get_db)):
+def get_latest_video(request: Request, db: Session = Depends(get_db)):
     video = db.query(Video).order_by(Video.created_at.desc()).first()
     if not video:
         return None
-    return _enrich_video_response(video)
+    current_user = get_current_user_optional(request)
+    items = _enrich_videos_batch(db, [video], current_user.user_id if current_user else None)
+    return items[0]
 
 @router.post("/{video_id}/upload", status_code=status.HTTP_204_NO_CONTENT)
 async def upload_file_to_storage(
@@ -354,6 +424,7 @@ def update_transcode_result(video_id: int, payload: TranscodeUpdateRequest, db: 
 
 @router.get("", response_model=VideoListResponse)
 def list_videos(
+    request: Request,
     limit: int = Query(default=20, ge=1, le=100),
     cursor_id: int | None = Query(default=None),
     category: str | None = Query(default=None),
@@ -372,16 +443,15 @@ def list_videos(
         query = query.filter(Video.id < cursor_id)
     videos = query.limit(limit).all()
 
-    items = []
-    for video in videos:
-        items.append(_enrich_video_response(video))
-    next_cursor = videos[-1].id if len(videos)==limit else None
+    current_user = get_current_user_optional(request)
+    items = _enrich_videos_batch(db, videos, current_user.user_id if current_user else None)
+    next_cursor = videos[-1].id if len(videos) == limit else None
 
     return VideoListResponse(
         items=items,
         limit=limit,
         next_cursor=next_cursor,
-        has_more=next_cursor is not None
+        has_more=next_cursor is not None,
     )
 
 
@@ -444,14 +514,88 @@ def get_video_thumbnail(video_id: int, db: Session = Depends(get_db)):
     content_bytes, content_type = _fetch_object_bytes(video.thumbnail_key)
     return Response(content=content_bytes, media_type=content_type)
 
+
+@router.get("/{video_id}/likes", response_model=LikeStatusResponse)
+def get_like_status(
+    video_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    _get_video_or_404(db, video_id)
+    current_user = get_current_user_optional(request)
+    like_count = (
+        db.query(func.count(VideoLike.user_id))
+        .filter(VideoLike.video_id == video_id)
+        .scalar()
+        or 0
+    )
+    liked = False
+    if current_user:
+        liked = (
+            db.query(VideoLike)
+            .filter(VideoLike.video_id == video_id, VideoLike.user_id == current_user.user_id)
+            .first()
+            is not None
+        )
+    return LikeStatusResponse(video_id=video_id, like_count=like_count, liked=liked)
+
+
+@router.post("/{video_id}/like", response_model=LikeStatusResponse)
+def like_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _get_video_or_404(db, video_id)
+
+    existing = (
+        db.query(VideoLike)
+        .filter(VideoLike.video_id == video_id, VideoLike.user_id == current_user.user_id)
+        .first()
+    )
+    if not existing:
+        db.add(VideoLike(user_id=current_user.user_id, video_id=video_id))
+        db.commit()
+
+    like_count = (
+        db.query(func.count(VideoLike.user_id))
+        .filter(VideoLike.video_id == video_id)
+        .scalar()
+        or 0
+    )
+    return LikeStatusResponse(video_id=video_id, like_count=like_count, liked=True)
+
+
+@router.delete("/{video_id}/like", response_model=LikeStatusResponse)
+def unlike_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _get_video_or_404(db, video_id)
+
+    db.query(VideoLike).filter(
+        VideoLike.video_id == video_id,
+        VideoLike.user_id == current_user.user_id,
+    ).delete()
+    db.commit()
+
+    like_count = (
+        db.query(func.count(VideoLike.user_id))
+        .filter(VideoLike.video_id == video_id)
+        .scalar()
+        or 0
+    )
+    return LikeStatusResponse(video_id=video_id, like_count=like_count, liked=False)
+
+
 # TODO: Update this endpoint to not send public url, use streaming response instead
 @router.get("/{video_id}", response_model=VideoResponse)
-def get_video(video_id: int, db: Session = Depends(get_db)):
-    video = db.query(Video).filter(Video.id == video_id).first()
-    if not video:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-
-    return _enrich_video_response(video)
+def get_video(video_id: int, request: Request, db: Session = Depends(get_db)):
+    video = _get_video_or_404(db, video_id)
+    current_user = get_current_user_optional(request)
+    items = _enrich_videos_batch(db, [video], current_user.user_id if current_user else None)
+    return items[0]
 
 #TODO: We can remove it as we do not want download functionality
 # @router.get("/{video_id}/download-url")

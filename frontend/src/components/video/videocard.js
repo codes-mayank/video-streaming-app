@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-export default function VideoCard({ id, title, thumbnail, creator, views }) {
+export default function VideoCard({ id, title, thumbnail, creator, views, likeCount = 0 }) {
     return (
         <Link
             href={`/watch/${id}`}
@@ -11,7 +11,9 @@ export default function VideoCard({ id, title, thumbnail, creator, views }) {
             </div>
             <h3 className="text-lg font-medium">{title}</h3>
             <p className="text-sm text-gray-500">{creator}</p>
-            <p className="text-sm text-gray-500">{views} views</p>
+            <p className="text-sm text-gray-500">
+              {views} views · {likeCount} {likeCount === 1 ? "like" : "likes"}
+            </p>
         </Link>
     )
 }

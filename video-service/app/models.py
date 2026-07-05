@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String, Text, func, text, Boolean
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func, text
 from app.database import Base
 
 
@@ -24,3 +24,11 @@ class Video(Base):
     category = Column(String(50), nullable=False, server_default=text("'other'"), index=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
+
+
+class VideoLike(Base):
+    __tablename__ = "video_likes"
+
+    user_id = Column(Integer, primary_key=True)
+    video_id = Column(Integer, ForeignKey("videos.id", ondelete="CASCADE"), primary_key=True, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)

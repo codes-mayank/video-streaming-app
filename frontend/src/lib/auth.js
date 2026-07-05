@@ -79,6 +79,76 @@ export async function getCurrentUser() {
   return res.json();
 }
 
+export function editProfile({ username, email, fullName }) {
+  return authFetch("/users/auth/edit-profile", {
+    method: "PATCH",
+    body: JSON.stringify({
+      username,
+      email,
+      full_name: fullName,
+    }),
+  });
+}
+
+function guessImageType(file) {
+  if (file.type) return file.type;
+  const ext = file.name.split(".").pop()?.toLowerCase();
+  const types = {
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    png: "image/png",
+    gif: "image/gif",
+    webp: "image/webp",
+  };
+  return types[ext] || "image/jpeg";
+}
+
+export async function uploadProfileImage(file) {
+  const contentType = guessImageType(file);
+  const { file_key, upload_url } = await authFetch("/users/auth/profile-photo-upload/initiate", {
+    method: "POST",
+    body: JSON.stringify({
+      content_type: contentType,
+    }),
+  });
+
+  let uploaded = false;
+  try {
+    const directRes = await fetch(upload_url, {
+      method: "PUT",
+      body: file,
+      headers: {
+        "Content-Type": contentType,
+      },
+    });
+    uploaded = directRes.ok;
+  } catch {
+    uploaded = false;
+  }
+
+  if (!uploaded) {
+    const formData = new FormData();
+    formData.append("file_key", file_key);
+    formData.append("file", file);
+
+    const proxyRes = await fetch(`${API_BASE}/users/auth/profile-photo-upload/upload`, {
+      method: "POST",
+      credentials: "include",
+      body: formData,
+    });
+
+    if (!proxyRes.ok) {
+      throw new Error(await parseErrorResponse(proxyRes));
+    }
+  }
+
+  const { profile_image_url } = await authFetch("/users/auth/profile-photo-upload/complete", {
+    method: "POST",
+    body: JSON.stringify({ file_key }),
+  });
+  return profile_image_url;
+}
+
 export function logout() {
   return authFetch("/users/auth/logout", { method: "POST" });
 }

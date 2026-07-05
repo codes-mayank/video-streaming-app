@@ -2,10 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.models import Base
-from app.database import engine
-
 from app.api.auth import router as auth_router
-
 from app.database import Base, engine
 
 def ensure_schema_created() -> None:

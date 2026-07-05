@@ -70,8 +70,16 @@ class VideoResponse(BaseModel):
     updated_at: datetime
     playback_url: str | None = None
     thumbnail_url: str | None = None
+    like_count: int = 0
+    liked: bool | None = None
 
     model_config = {"from_attributes": True}
+
+
+class LikeStatusResponse(BaseModel):
+    video_id: int
+    like_count: int
+    liked: bool
 
 
 class VideoListResponse(BaseModel):

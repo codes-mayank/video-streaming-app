@@ -1,7 +1,13 @@
-from pydantic_settings import BaseSettings
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        case_sensitive=True,
+        extra="ignore",
+    )
+
     APP_NAME: str = "video-service"
     DEBUG: bool = False
 
@@ -15,12 +21,12 @@ class Settings(BaseSettings):
     AWS_PRESIGNED_EXPIRES_SECONDS: int = 900
     AWS_PUBLIC_BASE_URL: str = ""
 
+    SECRET_KEY: str = "secret-key"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_COOKIE_NAME: str = "access_token"
+
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
     KAFKA_VIDEO_TOPIC: str = "video-transcode-jobs"
-
-    class Config:
-        env_file = ".env"
-        case_sensitive = True
 
 
 settings = Settings()

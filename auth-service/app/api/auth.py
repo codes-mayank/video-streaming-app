@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
+from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File, Form
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.config import settings
 from app.core.security import get_password_hash, create_access_token, verify_password, create_token_payload, get_current_user
@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from app.adapter.auth import AuthAdapter
 import base64
 import boto3
-from app.services.s3 import check_object_exists, is_supported_image_type, build_profile_photo_key, build_public_url, generate_presigned_upload_url
+from app.services.s3 import check_object_exists, is_supported_image_type, build_profile_photo_key, build_public_url, generate_presigned_upload_url, get_s3_client
 
 
 router = APIRouter()
@@ -168,6 +168,40 @@ async def profile_photo_upload_initiate(
         expires_in_seconds=settings.AWS_PRESIGNED_EXPIRES_SECONDS,
     )
 
+@router.post("/profile-photo-upload/upload", status_code=status.HTTP_204_NO_CONTENT)
+async def upload_profile_photo_to_storage(
+    file_key: str = Form(...),
+    file: UploadFile = File(...),
+    token: Token = Depends(get_current_user),
+) -> Response:
+    """
+    Same-origin upload: browser sends the file here; the server writes to R2/S3.
+    Avoids CORS on direct PUT to the pre-signed URL.
+    """
+    _require_storage_config()
+
+    expected_prefix = f"profile-photos/{token.user_id}/"
+    if not file_key.startswith(expected_prefix):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid file key")
+
+    incoming_ct = (file.content_type or "").strip()
+    if incoming_ct and not is_supported_image_type(incoming_ct):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Unsupported image type")
+
+    content_type = incoming_ct or "application/octet-stream"
+    client = get_s3_client()
+    try:
+        client.upload_fileobj(
+            file.file,
+            settings.AWS_BUCKET_NAME,
+            file_key,
+            ExtraArgs={"ContentType": content_type},
+        )
+    finally:
+        await file.close()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
 @router.post("/profile-photo-upload/complete", response_model=ProfileImageUploadCompleteResponse)
 async def profile_photo_upload_complete(
     payload: ProfileImageUploadCompleteRequest,
@@ -211,7 +245,6 @@ async def edit_profile(
         user.full_name = payload.full_name
     db.commit()
     db.refresh(user)
-    return user
     return user
 
 @router.get("/me", response_model=UserOut)

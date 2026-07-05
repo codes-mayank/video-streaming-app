@@ -1,5 +1,7 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8090";
 
+const fetchOptions = { credentials: "include", cache: "no-store" };
+
 async function parseErrorResponse(res) {
   const data = await res.json().catch(() => ({}));
   const { detail } = data;
@@ -21,7 +23,7 @@ async function parseErrorResponse(res) {
 
 export async function searchVideos(query) {
   const params = new URLSearchParams({ query: query.trim() });
-  const res = await fetch(`${API_BASE}/videos/search?${params.toString()}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/videos/search?${params.toString()}`, fetchOptions);
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
   }
@@ -29,7 +31,7 @@ export async function searchVideos(query) {
 }
 
 export async function getLatestVideo() {
-  const res = await fetch(`${API_BASE}/videos/latest`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/videos/latest`, fetchOptions);
   if (res.status === 404) return null;
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
@@ -44,7 +46,7 @@ export async function getVideos({ category } = {}) {
 
   const query = params.toString();
   const url = query ? `${API_BASE}/videos?${query}` : `${API_BASE}/videos`;
-  const res = await fetch(url, { cache: "no-store" });
+  const res = await fetch(url, fetchOptions);
 
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
@@ -54,13 +56,32 @@ export async function getVideos({ category } = {}) {
 }
 
 export async function getVideo(id) {
-  const res = await fetch(`${API_BASE}/videos/${id}`, { cache: "no-store" });
+  const res = await fetch(`${API_BASE}/videos/${id}`, fetchOptions);
 
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
   }
 
   return res.json();
+}
+
+async function likeRequest(videoId, method) {
+  const res = await fetch(`${API_BASE}/videos/${videoId}/like`, {
+    ...fetchOptions,
+    method,
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  return res.json();
+}
+
+export function likeVideo(videoId) {
+  return likeRequest(videoId, "POST");
+}
+
+export function unlikeVideo(videoId) {
+  return likeRequest(videoId, "DELETE");
 }
 
 export function getPlaybackSource(playbackUrl) {
