@@ -84,6 +84,40 @@ export function unlikeVideo(videoId) {
   return likeRequest(videoId, "DELETE");
 }
 
+export async function getComments(videoId, { limit = 20, cursor } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor_id", String(cursor));
+
+  const res = await fetch(`${API_BASE}/videos/${videoId}/comments?${params.toString()}`, fetchOptions);
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  return res.json();
+}
+
+export async function createComment(videoId, body) {
+  const res = await fetch(`${API_BASE}/videos/${videoId}/comments`, {
+    ...fetchOptions,
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ body }),
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  return res.json();
+}
+
+export async function deleteComment(videoId, commentId) {
+  const res = await fetch(`${API_BASE}/videos/${videoId}/comments/${commentId}`, {
+    ...fetchOptions,
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+}
+
 export function getPlaybackSource(playbackUrl) {
   if (!playbackUrl) return null;
 

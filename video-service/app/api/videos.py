@@ -9,8 +9,11 @@ from app.core.config import settings
 from app.core.security import get_current_user, get_current_user_optional
 from app.categories import DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, normalize_category
 from app.database import get_db
-from app.models import Video, VideoLike
+from app.models import Video, VideoComment, VideoLike
 from app.schemas import (
+    CommentCreateRequest,
+    CommentListResponse,
+    CommentResponse,
     LikeStatusResponse,
     TranscodeUpdateRequest,
     VideoCompleteUploadResponse,
@@ -587,6 +590,90 @@ def unlike_video(
         or 0
     )
     return LikeStatusResponse(video_id=video_id, like_count=like_count, liked=False)
+
+
+def _comment_to_response(comment: VideoComment, current_user_id: int | None = None) -> CommentResponse:
+    item = CommentResponse.model_validate(comment)
+    item.is_owner = comment.user_id == current_user_id if current_user_id else None
+    return item
+
+
+@router.get("/{video_id}/comments", response_model=CommentListResponse)
+def list_comments(
+    video_id: int,
+    request: Request,
+    limit: int = Query(default=20, ge=1, le=100),
+    cursor_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    _get_video_or_404(db, video_id)
+    current_user = get_current_user_optional(request)
+
+    query = db.query(VideoComment).filter(VideoComment.video_id == video_id).order_by(VideoComment.id.desc())
+    total = db.query(func.count(VideoComment.id)).filter(VideoComment.video_id == video_id).scalar() or 0
+
+    if cursor_id:
+        query = query.filter(VideoComment.id < cursor_id)
+
+    comments = query.limit(limit).all()
+    items = [
+        _comment_to_response(comment, current_user.user_id if current_user else None)
+        for comment in comments
+    ]
+    next_cursor = comments[-1].id if len(comments) == limit else None
+
+    return CommentListResponse(
+        items=items,
+        limit=limit,
+        next_cursor=next_cursor,
+        has_more=next_cursor is not None,
+        total=total,
+    )
+
+
+@router.post("/{video_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
+def create_comment(
+    video_id: int,
+    payload: CommentCreateRequest,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _get_video_or_404(db, video_id)
+
+    comment = VideoComment(
+        video_id=video_id,
+        user_id=current_user.user_id,
+        username=current_user.sub,
+        body=payload.body.strip(),
+    )
+    db.add(comment)
+    db.commit()
+    db.refresh(comment)
+    return _comment_to_response(comment, current_user.user_id)
+
+
+@router.delete("/{video_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_comment(
+    video_id: int,
+    comment_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    _get_video_or_404(db, video_id)
+
+    comment = (
+        db.query(VideoComment)
+        .filter(VideoComment.id == comment_id, VideoComment.video_id == video_id)
+        .first()
+    )
+    if not comment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+    if comment.user_id != current_user.user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete this comment")
+
+    db.delete(comment)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 # TODO: Update this endpoint to not send public url, use streaming response instead

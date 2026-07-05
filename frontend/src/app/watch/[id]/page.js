@@ -6,6 +6,7 @@ import Link from "next/link";
 import MainLayout from "@/components/layout/mainLayout";
 import VideoPlayer from "@/components/auth/videoplayer";
 import LikeButton from "@/components/video/likebutton";
+import CommentsSection from "@/components/video/commentssection";
 import { getVideo, getPlaybackSource } from "@/lib/video";
 
 export default function WatchPage() {
@@ -56,6 +57,7 @@ export default function WatchPage() {
               This video is not ready for playback yet. Wait for transcoding to finish.
             </p>
           )}
+          <CommentsSection videoId={video.id} />
         </div>
       )}
     </MainLayout>

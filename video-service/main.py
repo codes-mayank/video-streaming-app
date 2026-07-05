@@ -82,9 +82,33 @@ def ensure_video_likes_table() -> None:
             )
 
 
+def ensure_video_comments_table() -> None:
+    inspector = inspect(engine)
+    if "video_comments" in inspector.get_table_names():
+        return
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                """
+                CREATE TABLE video_comments (
+                    id SERIAL PRIMARY KEY,
+                    video_id INTEGER NOT NULL REFERENCES videos(id) ON DELETE CASCADE,
+                    user_id INTEGER NOT NULL,
+                    username VARCHAR(50) NOT NULL,
+                    body TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+                )
+                """
+            )
+        )
+        conn.execute(text("CREATE INDEX idx_video_comments_video_id ON video_comments (video_id)"))
+        conn.execute(text("CREATE INDEX idx_video_comments_user_id ON video_comments (user_id)"))
+
+
 ensure_schema_created()
 ensure_video_columns()
 ensure_video_likes_table()
+ensure_video_comments_table()
 
 app.include_router(videos_router, prefix='/videos', tags=["Videos"])
 

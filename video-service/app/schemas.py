@@ -82,6 +82,29 @@ class LikeStatusResponse(BaseModel):
     liked: bool
 
 
+class CommentCreateRequest(BaseModel):
+    body: str = Field(..., min_length=1, max_length=2000)
+
+
+class CommentResponse(CommentCreateRequest):
+    id: int
+    video_id: int
+    user_id: int
+    username: str
+    created_at: datetime
+    is_owner: bool | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class CommentListResponse(BaseModel):
+    items: list[CommentResponse]
+    limit: int
+    next_cursor: int | None
+    has_more: bool
+    total: int
+
+
 class VideoListResponse(BaseModel):
     items: list[VideoResponse]
     limit: int

@@ -32,3 +32,14 @@ class VideoLike(Base):
     user_id = Column(Integer, primary_key=True)
     video_id = Column(Integer, ForeignKey("videos.id", ondelete="CASCADE"), primary_key=True, index=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+
+class VideoComment(Base):
+    __tablename__ = "video_comments"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    video_id = Column(Integer, ForeignKey("videos.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    username = Column(String(50), nullable=False)
+    body = Column(Text, nullable=False)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
