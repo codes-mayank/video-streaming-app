@@ -1,15 +1,16 @@
 import mimetypes
 from pathlib import PurePosixPath
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
 from sqlalchemy import func
 from sqlalchemy.orm import Session
+from sqlalchemy.dialects.postgresql import insert
 
 from app.core.config import settings
 from app.core.security import get_current_user, get_current_user_optional
 from app.categories import DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, normalize_category
 from app.database import get_db
-from app.models import Video, VideoComment, VideoLike
+from app.models import Video, VideoComment, VideoLike, WatchHistory
 from app.schemas import (
     CommentCreateRequest,
     CommentListResponse,
@@ -21,6 +22,7 @@ from app.schemas import (
     VideoResponse,
     VideoUploadInitRequest,
     VideoUploadInitResponse,
+    User,
 )
 from app.services.s3 import (
     build_public_url,
@@ -676,13 +678,63 @@ def delete_comment(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
+def add_watch_history(video_id: int, current_user: User, db: Session):
+    print("add_watch_history")
+    if not current_user:
+        return
+    # _get_video_or_404(db, video_id)
+    watch_history = (
+            insert(WatchHistory)
+            .values(
+                user_id=current_user.user_id,
+                video_id=video_id,
+            )
+            .on_conflict_do_update(
+                index_elements=[
+                    WatchHistory.user_id,
+                    WatchHistory.video_id,
+                ],
+                set_={
+                    "created_at": func.now()
+                },
+            )
+        )
+    db.execute(watch_history)
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+@router.get("/watch-history", response_model=list[VideoResponse])
+def get_watch_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    watch_history = (
+        db.query(WatchHistory)
+        .filter(WatchHistory.user_id == current_user.user_id)
+        .order_by(WatchHistory.created_at.desc())
+        .all()
+    )
+    video_ids = [item.video_id for item in watch_history]
+    if not video_ids:
+        return []
+
+    videos = db.query(Video).filter(Video.id.in_(video_ids)).all()
+    video_by_id = {video.id: video for video in videos}
+    ordered_videos = [video_by_id[video_id] for video_id in video_ids if video_id in video_by_id]
+    return _enrich_videos_batch(db, ordered_videos, current_user.user_id)
+
+
 # TODO: Update this endpoint to not send public url, use streaming response instead
 @router.get("/{video_id}", response_model=VideoResponse)
-def get_video(video_id: int, request: Request, db: Session = Depends(get_db)):
+def get_video(video_id: int, request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = BackgroundTasks()):
+    print("get_video", video_id)
     video = _get_video_or_404(db, video_id)
     current_user = get_current_user_optional(request)
     items = _enrich_videos_batch(db, [video], current_user.user_id if current_user else None)
+    background_tasks.add_task(add_watch_history, video_id, current_user if current_user else None, db)
     return items[0]
+
+
+
 
 #TODO: We can remove it as we do not want download functionality
 # @router.get("/{video_id}/download-url")

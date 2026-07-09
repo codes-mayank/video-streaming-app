@@ -65,6 +65,14 @@ export async function getVideo(id) {
   return res.json();
 }
 
+export async function getWatchHistory() {
+  const res = await fetch(`${API_BASE}/videos/watch-history`, fetchOptions);
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  return res.json();
+}
+
 async function likeRequest(videoId, method) {
   const res = await fetch(`${API_BASE}/videos/${videoId}/like`, {
     ...fetchOptions,
@@ -113,6 +121,17 @@ export async function deleteComment(videoId, commentId) {
     ...fetchOptions,
     method: "DELETE",
   });
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+}
+
+export async function addWatchHistory(videoId) {
+  const res = await fetch(`${API_BASE}/videos/${videoId}/watch-history`, {
+    ...fetchOptions,
+    method: "POST",
+  });
+  console.log(res);
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
   }

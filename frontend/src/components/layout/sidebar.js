@@ -19,7 +19,7 @@ const menuItems = [
   {icon: PlaySquare, label: "Subscriptions", href: "/subscriptions"},
   {icon: History, label: "History", href: "/history"},
   {icon: Heart, label: "Liked Videos", href: "/liked"},
-  {icon: ListVideo, label: "Watch Later", href: "/watch-later"},
+  {icon: ListVideo, label: "Watch History", href: "/watch-history"},
 ];
 
 function isActive(pathname, href){

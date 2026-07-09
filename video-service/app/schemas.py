@@ -116,3 +116,12 @@ class TranscodeUpdateRequest(BaseModel):
     status: str = Field(..., min_length=1, max_length=50)
     hls_master_key: str | None = Field(default=None, max_length=500)
     hls_prefix: str | None = Field(default=None, max_length=500)
+
+
+class User(BaseModel):
+    user_id: int
+    username: str
+    email: str
+    role: str
+    created_at: datetime
+    updated_at: datetime
