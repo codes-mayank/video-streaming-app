@@ -15,11 +15,11 @@ import { usePathname } from "next/navigation";
 
 const menuItems = [
   {icon: Home, label: "Home", href: "/"},
-  {icon: Flame, label: "Trending", href: "/trending"},
+  // {icon: Flame, label: "Trending", href: "/trending"},
   {icon: PlaySquare, label: "Subscriptions", href: "/subscriptions"},
-  {icon: History, label: "History", href: "/history"},
-  {icon: Heart, label: "Liked Videos", href: "/liked"},
-  {icon: ListVideo, label: "Watch History", href: "/watch-history"},
+  {icon: History, label: "Watch History", href: "/watch-history"},
+  {icon: Heart, label: "Liked Videos", href: "/likedvideos"},
+  // {icon: ListVideo, label: "Watch History", href: "/watch-history"},
 ];
 
 function isActive(pathname, href){

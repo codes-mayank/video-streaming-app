@@ -10,7 +10,7 @@ from app.core.config import settings
 from app.core.security import get_current_user, get_current_user_optional
 from app.categories import DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, normalize_category
 from app.database import get_db
-from app.models import Video, VideoComment, VideoLike, WatchHistory
+from app.models import Video, VideoComment, VideoLike, WatchHistory, Subscription, User as UserModel
 from app.schemas import (
     CommentCreateRequest,
     CommentListResponse,
@@ -23,6 +23,8 @@ from app.schemas import (
     VideoUploadInitRequest,
     VideoUploadInitResponse,
     User,
+    UserListResponse,
+    SubscriptionResponse,
 )
 from app.services.s3 import (
     build_public_url,
@@ -722,6 +724,68 @@ def get_watch_history(current_user: User = Depends(get_current_user), db: Sessio
     ordered_videos = [video_by_id[video_id] for video_id in video_ids if video_id in video_by_id]
     return _enrich_videos_batch(db, ordered_videos, current_user.user_id)
 
+@router.get("/liked-videos", response_model=list[VideoResponse])
+def get_liked_videos(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    liked_videos = (
+        db.query(VideoLike)
+        .filter(VideoLike.user_id == current_user.user_id)
+        .order_by(VideoLike.created_at.desc())
+        .all()
+    )
+    video_ids = [item.video_id for item in liked_videos]
+    if not video_ids:
+        return []
+
+    videos = db.query(Video).filter(Video.id.in_(video_ids)).all()
+    video_by_id = {video.id: video for video in videos}
+    ordered_videos = [video_by_id[video_id] for video_id in video_ids if video_id in video_by_id]
+    return _enrich_videos_batch(db, ordered_videos, current_user.user_id)
+
+@router.get("/check-subscription/{user_id}")
+def check_subscription(user_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    existing_subscription = db.query(Subscription).filter(Subscription.user_id == current_user.user_id, Subscription.channel_id == user_id).first()
+    if existing_subscription:
+        return SubscriptionResponse(user_id=current_user.user_id, channel_id=user_id)
+    return None
+
+@router.get("/subscriptions", response_model=list[UserListResponse])
+def get_subscriptions(db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    subscribed_channels = (
+        db.query(UserModel)
+        .join(Subscription, UserModel.id == Subscription.channel_id)
+        .filter(Subscription.user_id == current_user.user_id)
+        .all()
+    )
+    return subscribed_channels
+
+@router.post("/{user_id}/subscribe", response_model=SubscriptionResponse)
+def subscribe_to_channel(user_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    existing_subscription = db.query(Subscription).filter(Subscription.user_id == current_user.user_id, Subscription.channel_id == user_id).first()
+    if existing_subscription:
+        return SubscriptionResponse(user_id=current_user.user_id, channel_id=user_id)
+    subscription = Subscription(user_id=current_user.user_id, channel_id=user_id)
+    db.add(subscription)
+    db.commit()
+    return SubscriptionResponse(user_id=current_user.user_id, channel_id=user_id)
+
+@router.delete("/{user_id}/unsubscribe", response_model=SubscriptionResponse)
+def unsubscribe_from_channel(user_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    existing_subscription = db.query(Subscription).filter(Subscription.user_id == current_user.user_id, Subscription.channel_id == user_id).first()
+    if not existing_subscription:
+        return SubscriptionResponse(user_id=current_user.user_id, channel_id=user_id)
+    db.delete(existing_subscription)
+    db.commit()
+    return SubscriptionResponse(user_id=current_user.user_id, channel_id=user_id)
 
 # TODO: Update this endpoint to not send public url, use streaming response instead
 @router.get("/{video_id}", response_model=VideoResponse)

@@ -30,7 +30,7 @@ export default function Navbar() {
 
   return (
     <>
-      <header className="sticky top-0 right-0 z-20 bg-white/60 backdrop-blur-xl border-b border-white/30 h-20 px-8 flex justify-between items-center gap-3">
+      <header className="sticky top-0 right-0 z-20 rounded-2xl w-9/10 mx-auto bg-white/60 backdrop-blur-xl border-b border-white/30 h-20 px-8 flex justify-between items-center gap-3">
         <div className="flex items-center gap-3 max-w-xl w-full">
           <Search size={18} />
           <input

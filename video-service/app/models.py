@@ -1,4 +1,4 @@
-from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func, text
+from sqlalchemy import Boolean, Column, DateTime, ForeignKey, Integer, String, Text, func, text, UniqueConstraint
 from app.database import Base
 
 
@@ -52,3 +52,35 @@ class WatchHistory(Base):
     user_id = Column(Integer, nullable=False, index=True)
     video_id = Column(Integer, ForeignKey("videos.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+
+class Subscription(Base):
+    __tablename__ = "subscriptions"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    user_id = Column(Integer, nullable=False, index=True)
+    channel_id = Column(Integer, nullable=False, index=True)
+    created_at = Column(DateTime, server_default=func.now(), nullable=False)
+
+    __table_args__ = (
+        UniqueConstraint(user_id, channel_id, name="uix_user_channel"),
+    )
+
+    # user = relationship("User", foreign_keys=[user_id])
+    # channel = relationship("User", foreign_keys=[channel_id])
+
+
+class User(Base):
+    __tablename__ = "users"
+
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    username = Column(String(50), unique=True, index=True)
+    email = Column(String(100), unique=True, index=True)
+    full_name = Column(String(100))
+    hashed_password = Column(String(200), nullable=True)
+    disabled = Column(Boolean, default=False)
+    google_id = Column(String(100), unique=True, nullable=True, index=True)
+    profile_image_url = Column(Text, nullable=True)
+
+    def __repr__(self):
+        return f"<User(username={self.username}, email={self.email})>"

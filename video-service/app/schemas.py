@@ -125,3 +125,17 @@ class User(BaseModel):
     role: str
     created_at: datetime
     updated_at: datetime
+
+class SubscriptionResponse(BaseModel):
+    user_id: int
+    channel_id: int
+    created_at: datetime | None = None
+
+class UserListResponse(BaseModel):
+    id: int
+    username: str
+    email: str
+    full_name: str
+    profile_image_url: str | None = None
+    disabled: bool
+    profile_image_url: str | None = None

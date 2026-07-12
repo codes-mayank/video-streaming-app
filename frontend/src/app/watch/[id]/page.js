@@ -7,14 +7,18 @@ import MainLayout from "@/components/layout/mainLayout";
 import VideoPlayer from "@/components/auth/videoplayer";
 import LikeButton from "@/components/video/likebutton";
 import CommentsSection from "@/components/video/commentssection";
+import SubscribeButton from "@/components/video/subscribebutton";
 import { getVideo, getPlaybackSource } from "@/lib/video";
+import { getCurrentUser } from "@/lib/auth";
 
 export default function WatchPage() {
   const { id } = useParams();
   const [video, setVideo] = useState(null);
   const [error, setError] = useState(null);
+  const [user, setUser] = useState(null);
 
   useEffect(() => {
+    getCurrentUser().then((user) => setUser(user));
     getVideo(id)
       .then(setVideo)
       .catch((err) => setError(err.message));
@@ -49,6 +53,12 @@ export default function WatchPage() {
               initialCount={video.like_count ?? 0}
               initialLiked={Boolean(video.liked)}
             />
+            {String(user?.id) !== video.user_id && (
+              <SubscribeButton
+                userId={video.user_id}
+                initialSubscribed={Boolean(video.subscribed)}
+              />
+            )}
           </div>
           {playbackUrl ? (
             <VideoPlayer key={id} options={playerOptions} />
@@ -57,6 +67,7 @@ export default function WatchPage() {
               This video is not ready for playback yet. Wait for transcoding to finish.
             </p>
           )}
+          
           <CommentsSection videoId={video.id} />
         </div>
       )}
