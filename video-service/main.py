@@ -6,6 +6,7 @@ from sqlalchemy import inspect, text
 from app.api.videos import router as videos_router
 from app.database import Base, engine
 from app.core.config import settings
+from app.services.redis import redis_client
 
 
 app = FastAPI(title="video-service", version="1.0.0")
@@ -117,6 +118,14 @@ app.include_router(videos_router, prefix='/videos', tags=["Videos"])
 def health() -> dict[str, str]:
     return {"status": "ok"}
 
+@app.get("/redis-test")
+def redis_test():
+    redis_client.set("hello", "Mayank")
+    value = redis_client.get("hello")
+
+    return {
+        "redis": value
+    }
 
 @app.get("/upload", include_in_schema=False)
 def upload_page():

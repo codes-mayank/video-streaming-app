@@ -40,13 +40,12 @@ export async function getLatestVideo() {
   return Array.isArray(data) ? data[0] ?? null : data;
 }
 
-export async function getVideos({ category } = {}) {
-  const params = new URLSearchParams();
+export async function getVideos({ category, limit = 12, cursor } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
   if (category) params.set("category", category);
+  if (cursor) params.set("cursor_id", String(cursor));
 
-  const query = params.toString();
-  const url = query ? `${API_BASE}/videos?${query}` : `${API_BASE}/videos`;
-  const res = await fetch(url, fetchOptions);
+  const res = await fetch(`${API_BASE}/videos?${params}`, fetchOptions);
 
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
@@ -67,6 +66,22 @@ export async function getVideo(id) {
 
 export async function getWatchHistory() {
   const res = await fetch(`${API_BASE}/videos/watch-history`, fetchOptions);
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  return res.json();
+}
+
+export async function getLikedVideos() {
+  const res = await fetch(`${API_BASE}/videos/liked-videos`, fetchOptions);
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  return res.json();
+}
+
+export async function getSubscriptions() {
+  const res = await fetch(`${API_BASE}/videos/subscriptions`, fetchOptions);
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
   }
@@ -132,6 +147,34 @@ export async function addWatchHistory(videoId) {
     method: "POST",
   });
   console.log(res);
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+}
+
+export async function checkSubscription(userId) {
+  const res = await fetch(`${API_BASE}/videos/check-subscription/${userId}`, fetchOptions);
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  return res.json();
+}
+
+export async function subscribeToChannel(userId) {
+  const res = await fetch(`${API_BASE}/videos/${userId}/subscribe`, {
+    ...fetchOptions,
+    method: "POST",
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+}
+
+export async function unsubscribeFromChannel(userId) {
+  const res = await fetch(`${API_BASE}/videos/${userId}/unsubscribe`, {
+    ...fetchOptions,
+    method: "DELETE",
+  });
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
   }

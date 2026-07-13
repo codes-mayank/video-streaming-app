@@ -8,3 +8,4 @@ psycopg2-binary
 kafka-python
 python-multipart
 python-jose
+redis

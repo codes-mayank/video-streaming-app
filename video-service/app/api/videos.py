@@ -6,6 +6,20 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 
+from app.services.redis import (
+    COMMENTS_CACHE_PREFIX,
+    LATEST_VIDEO_CACHE_KEY,
+    LIKES_COUNT_CACHE_PREFIX,
+    SEARCH_CACHE_PREFIX,
+    SEARCH_CACHE_TTL,
+    VIDEO_DETAIL_CACHE_PREFIX,
+    VIDEOS_LIST_CACHE_PREFIX,
+    get_cache,
+    invalidate_comments_cache,
+    invalidate_video_caches,
+    set_cache,
+)
+
 from app.core.config import settings
 from app.core.security import get_current_user, get_current_user_optional
 from app.categories import DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES, normalize_category
@@ -140,6 +154,46 @@ def _enrich_videos_batch(
     ]
 
 
+def _apply_liked_status(
+    db: Session,
+    items: list[VideoResponse],
+    current_user_id: int | None,
+) -> None:
+    """Attach per-user liked flags without putting them in the shared list cache."""
+    if not current_user_id or not items:
+        for item in items:
+            item.liked = None
+        return
+    liked_ids = _liked_video_ids_for_user(db, current_user_id, [item.id for item in items])
+    for item in items:
+        item.liked = item.id in liked_ids
+
+
+def _apply_comment_owner_status(
+    items: list[CommentResponse],
+    current_user_id: int | None,
+) -> None:
+    for item in items:
+        item.is_owner = item.user_id == current_user_id if current_user_id else None
+
+
+def _cached_video_response(
+    db: Session,
+    video: Video,
+    current_user_id: int | None,
+) -> VideoResponse:
+    """Return enriched video, using Redis for shared fields."""
+    cache_key = f"{VIDEO_DETAIL_CACHE_PREFIX}{video.id}"
+    cached_data = get_cache(cache_key)
+    if cached_data:
+        item = VideoResponse.model_validate(cached_data)
+    else:
+        item = _enrich_videos_batch(db, [video], current_user_id=None)[0]
+        set_cache(cache_key, item.model_dump(mode="json"))
+    _apply_liked_status(db, [item], current_user_id)
+    return item
+
+
 def _guess_content_type(key: str, fallback: str = "application/octet-stream") -> str:
     guessed, _ = mimetypes.guess_type(key)
     return guessed or fallback
@@ -239,22 +293,49 @@ def search_videos(
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user_optional(request)
+    normalized_query = query.strip().lower()
+    cache_key = f"{SEARCH_CACHE_PREFIX}{normalized_query}"
+
+    cached_data = get_cache(cache_key)
+    if cached_data:
+        items = [VideoResponse.model_validate(item) for item in cached_data]
+        _apply_liked_status(db, items, current_user.user_id if current_user else None)
+        return items
+
     videos = (
         db.query(Video)
-        .filter(Video.title.ilike(f"%{query}%"))
+        .filter(Video.title.ilike(f"%{normalized_query}%"))
         .order_by(Video.created_at.desc())
         .all()
     )
-    return _enrich_videos_batch(db, videos, current_user.user_id if current_user else None)
+    items = _enrich_videos_batch(db, videos, current_user_id=None)
+    set_cache(
+        cache_key,
+        [item.model_dump(mode="json") for item in items],
+        ttl=SEARCH_CACHE_TTL,
+    )
+    _apply_liked_status(db, items, current_user.user_id if current_user else None)
+    return items
+
 
 @router.get("/latest", response_model=VideoResponse | None)
 def get_latest_video(request: Request, db: Session = Depends(get_db)):
+    current_user = get_current_user_optional(request)
+
+    cached_data = get_cache(LATEST_VIDEO_CACHE_KEY)
+    if cached_data:
+        item = VideoResponse.model_validate(cached_data)
+        _apply_liked_status(db, [item], current_user.user_id if current_user else None)
+        return item
+
     video = db.query(Video).order_by(Video.created_at.desc()).first()
     if not video:
         return None
-    current_user = get_current_user_optional(request)
-    items = _enrich_videos_batch(db, [video], current_user.user_id if current_user else None)
-    return items[0]
+
+    item = _enrich_videos_batch(db, [video], current_user_id=None)[0]
+    set_cache(LATEST_VIDEO_CACHE_KEY, item.model_dump(mode="json"))
+    _apply_liked_status(db, [item], current_user.user_id if current_user else None)
+    return item
 
 @router.post("/{video_id}/upload", status_code=status.HTTP_204_NO_CONTENT)
 async def upload_file_to_storage(
@@ -377,6 +458,7 @@ def complete_upload(video_id: int, db: Session = Depends(get_db)):
         segment_basename=video.video_basename,
     )
 
+    invalidate_video_caches(video.id)
     return VideoCompleteUploadResponse(
         id=video.id,
         status=video.status,
@@ -403,6 +485,7 @@ def update_transcode_result(video_id: int, payload: TranscodeUpdateRequest, db: 
     db.add(video)
     db.commit()
     db.refresh(video)
+    invalidate_video_caches(video.id)
     return VideoCompleteUploadResponse(
         id=video.id,
         status=video.status,
@@ -437,6 +520,15 @@ def list_videos(
     category: str | None = Query(default=None),
     db: Session = Depends(get_db),
 ):
+    current_user = get_current_user_optional(request)
+    cache_key = f"{VIDEOS_LIST_CACHE_PREFIX}{limit}:{cursor_id}:{category}"
+
+    cached_data = get_cache(cache_key)
+    if cached_data:
+        response = VideoListResponse.model_validate(cached_data)
+        _apply_liked_status(db, response.items, current_user.user_id if current_user else None)
+        return response
+
     query = db.query(Video).order_by(Video.id.desc())
 
     if category:
@@ -448,18 +540,21 @@ def list_videos(
 
     if cursor_id:
         query = query.filter(Video.id < cursor_id)
+
     videos = query.limit(limit).all()
-
-    current_user = get_current_user_optional(request)
-    items = _enrich_videos_batch(db, videos, current_user.user_id if current_user else None)
+    # Cache shared list data without per-user liked flags
+    items = _enrich_videos_batch(db, videos, current_user_id=None)
     next_cursor = videos[-1].id if len(videos) == limit else None
-
-    return VideoListResponse(
+    response = VideoListResponse(
         items=items,
         limit=limit,
         next_cursor=next_cursor,
         has_more=next_cursor is not None,
     )
+    set_cache(cache_key, response.model_dump(mode="json"))
+
+    _apply_liked_status(db, response.items, current_user.user_id if current_user else None)
+    return response
 
 
 @router.get("/{video_id}/hls/master.m3u8")
@@ -530,12 +625,20 @@ def get_like_status(
 ):
     _get_video_or_404(db, video_id)
     current_user = get_current_user_optional(request)
-    like_count = (
-        db.query(func.count(VideoLike.user_id))
-        .filter(VideoLike.video_id == video_id)
-        .scalar()
-        or 0
-    )
+
+    cache_key = f"{LIKES_COUNT_CACHE_PREFIX}{video_id}"
+    cached_count = get_cache(cache_key)
+    if cached_count is not None:
+        like_count = int(cached_count)
+    else:
+        like_count = (
+            db.query(func.count(VideoLike.user_id))
+            .filter(VideoLike.video_id == video_id)
+            .scalar()
+            or 0
+        )
+        set_cache(cache_key, like_count)
+
     liked = False
     if current_user:
         liked = (
@@ -570,6 +673,7 @@ def like_video(
         .scalar()
         or 0
     )
+    invalidate_video_caches(video_id)
     return LikeStatusResponse(video_id=video_id, like_count=like_count, liked=True)
 
 
@@ -593,6 +697,7 @@ def unlike_video(
         .scalar()
         or 0
     )
+    invalidate_video_caches(video_id)
     return LikeStatusResponse(video_id=video_id, like_count=like_count, liked=False)
 
 
@@ -612,6 +717,16 @@ def list_comments(
 ):
     _get_video_or_404(db, video_id)
     current_user = get_current_user_optional(request)
+    cache_key = f"{COMMENTS_CACHE_PREFIX}{video_id}:{limit}:{cursor_id}"
+
+    cached_data = get_cache(cache_key)
+    if cached_data:
+        response = CommentListResponse.model_validate(cached_data)
+        _apply_comment_owner_status(
+            response.items,
+            current_user.user_id if current_user else None,
+        )
+        return response
 
     query = db.query(VideoComment).filter(VideoComment.video_id == video_id).order_by(VideoComment.id.desc())
     total = db.query(func.count(VideoComment.id)).filter(VideoComment.video_id == video_id).scalar() or 0
@@ -620,19 +735,23 @@ def list_comments(
         query = query.filter(VideoComment.id < cursor_id)
 
     comments = query.limit(limit).all()
-    items = [
-        _comment_to_response(comment, current_user.user_id if current_user else None)
-        for comment in comments
-    ]
+    items = [_comment_to_response(comment, current_user_id=None) for comment in comments]
     next_cursor = comments[-1].id if len(comments) == limit else None
 
-    return CommentListResponse(
+    response = CommentListResponse(
         items=items,
         limit=limit,
         next_cursor=next_cursor,
         has_more=next_cursor is not None,
         total=total,
     )
+    set_cache(cache_key, response.model_dump(mode="json"))
+
+    _apply_comment_owner_status(
+        response.items,
+        current_user.user_id if current_user else None,
+    )
+    return response
 
 
 @router.post("/{video_id}/comments", response_model=CommentResponse, status_code=status.HTTP_201_CREATED)
@@ -653,6 +772,7 @@ def create_comment(
     db.add(comment)
     db.commit()
     db.refresh(comment)
+    invalidate_comments_cache(video_id)
     return _comment_to_response(comment, current_user.user_id)
 
 
@@ -677,6 +797,7 @@ def delete_comment(
 
     db.delete(comment)
     db.commit()
+    invalidate_comments_cache(video_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
@@ -790,12 +911,11 @@ def unsubscribe_from_channel(user_id: int, db: Session = Depends(get_db), curren
 # TODO: Update this endpoint to not send public url, use streaming response instead
 @router.get("/{video_id}", response_model=VideoResponse)
 def get_video(video_id: int, request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = BackgroundTasks()):
-    print("get_video", video_id)
     video = _get_video_or_404(db, video_id)
     current_user = get_current_user_optional(request)
-    items = _enrich_videos_batch(db, [video], current_user.user_id if current_user else None)
+    item = _cached_video_response(db, video, current_user.user_id if current_user else None)
     background_tasks.add_task(add_watch_history, video_id, current_user if current_user else None, db)
-    return items[0]
+    return item
 
 
 
