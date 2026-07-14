@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import { Mail, Lock, Loader2 } from "lucide-react";
 import GlassCard from "@/components/ui/glasscard";
@@ -10,8 +10,17 @@ import { getCurrentUser, login, googleLogin } from "@/lib/auth";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
+function getSafeNext(next) {
+  if (typeof next === "string" && next.startsWith("/") && !next.startsWith("//")) {
+    return next;
+  }
+  return "/";
+}
+
 function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const next = getSafeNext(searchParams.get("next"));
   const [usernameOrEmail, setUsernameOrEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
@@ -24,7 +33,7 @@ function LoginForm() {
     getCurrentUser()
       .then((user) => {
         if (!cancelled && user) {
-          router.replace("/");
+          router.replace(next);
         }
       })
       .catch(() => {})
@@ -35,7 +44,7 @@ function LoginForm() {
     return () => {
       cancelled = true;
     };
-  }, [router]);
+  }, [router, next]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -44,7 +53,7 @@ function LoginForm() {
 
     try {
       await login(usernameOrEmail, password);
-      router.push("/");
+      router.push(next);
     } catch (err) {
       setError(err.message ?? "Something went wrong. Please try again.");
     } finally {
@@ -63,7 +72,7 @@ function LoginForm() {
       }
 
       await googleLogin(token);
-      router.push("/");
+      router.push(next);
     } catch (err) {
       setError(err.message ?? "Google sign-in failed. Please try again.");
     } finally {
@@ -78,6 +87,8 @@ function LoginForm() {
       </GlassCard>
     );
   }
+
+  const signupHref = next !== "/" ? `/signup?next=${encodeURIComponent(next)}` : "/signup";
 
   return (
     <GlassCard className="w-full max-w-md">
@@ -169,7 +180,7 @@ function LoginForm() {
 
       <p className="mt-6 text-center text-sm text-gray-500">
         Don&apos;t have an account?{" "}
-        <Link href="/signup" className="font-medium text-black hover:underline">
+        <Link href={signupHref} className="font-medium text-black hover:underline">
           Sign up
         </Link>
       </p>
@@ -177,14 +188,28 @@ function LoginForm() {
   );
 }
 
+function LoginFormWithSuspense() {
+  return (
+    <Suspense
+      fallback={
+        <GlassCard className="flex w-full max-w-md items-center justify-center py-16">
+          <Loader2 size={28} className="animate-spin text-gray-500" />
+        </GlassCard>
+      }
+    >
+      <LoginForm />
+    </Suspense>
+  );
+}
+
 export default function LoginCard() {
   if (!GOOGLE_CLIENT_ID) {
-    return <LoginForm />;
+    return <LoginFormWithSuspense />;
   }
 
   return (
     <GoogleOAuthProvider clientId={GOOGLE_CLIENT_ID}>
-      <LoginForm />
+      <LoginFormWithSuspense />
     </GoogleOAuthProvider>
   );
 }
