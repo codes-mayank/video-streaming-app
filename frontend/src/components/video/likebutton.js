@@ -3,8 +3,15 @@
 import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Heart, Loader2 } from "lucide-react";
+import { ThumbsUp, Loader2 } from "lucide-react";
 import { likeVideo, unlikeVideo } from "@/lib/video";
+
+function formatCount(count) {
+  const n = Number(count) || 0;
+  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1).replace(/\.0$/, "")}M`;
+  if (n >= 1_000) return `${(n / 1_000).toFixed(1).replace(/\.0$/, "")}K`;
+  return String(n);
+}
 
 export default function LikeButton({ videoId, initialCount = 0, initialLiked = false }) {
   const router = useRouter();
@@ -40,21 +47,21 @@ export default function LikeButton({ videoId, initialCount = 0, initialLiked = f
         disabled={loading}
         aria-pressed={liked}
         aria-label={liked ? "Unlike video" : "Like video"}
-        className={`inline-flex items-center gap-2 rounded-full border px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+        className={`inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
           liked
-            ? "border-red-200 bg-red-50 text-red-600 hover:bg-red-100"
-            : "border-gray-200 bg-white text-gray-700 hover:bg-gray-50"
+            ? "bg-[var(--brand-soft)] text-[var(--brand)]"
+            : "bg-zinc-100 text-zinc-700 hover:bg-zinc-200"
         }`}
       >
         {loading ? (
-          <Loader2 size={18} className="animate-spin" />
+          <Loader2 size={16} className="animate-spin" />
         ) : (
-          <Heart size={18} className={liked ? "fill-current" : ""} />
+          <ThumbsUp size={16} className={liked ? "fill-current" : ""} />
         )}
-        {likeCount} {likeCount === 1 ? "like" : "likes"}
+        {formatCount(likeCount)}
       </button>
       {error && (
-        <p className="text-sm text-red-600">
+        <p className="text-sm text-[var(--brand)]">
           {error}{" "}
           <Link href="/login" className="underline">
             Log in

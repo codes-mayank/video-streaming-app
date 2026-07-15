@@ -2,8 +2,9 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { Loader2, MessageSquare, Trash2 } from "lucide-react";
+import { ChevronDown, Loader2, Smile, ThumbsUp, Trash2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { createComment, deleteComment, getComments } from "@/lib/video";
 
@@ -119,74 +120,98 @@ export default function CommentsSection({ videoId }) {
   }
 
   return (
-    <section className="mt-8 rounded-2xl border border-gray-200 bg-white/70 p-5">
-      <div className="mb-4 flex items-center gap-2">
-        <MessageSquare size={20} className="text-gray-600" />
-        <h2 className="text-lg font-semibold">
-          Comments {total > 0 && <span className="text-gray-500">({total})</span>}
+    <section className="mt-8">
+      <div className="mb-5 flex items-center justify-between gap-3">
+        <h2 className="text-lg font-bold text-zinc-900">
+          Comments {total > 0 && <span className="font-semibold text-zinc-500">({total})</span>}
         </h2>
+        <button
+          type="button"
+          className="inline-flex items-center gap-1 text-sm font-medium text-zinc-500 hover:text-zinc-800"
+        >
+          Sort by
+          <ChevronDown size={14} />
+        </button>
       </div>
 
       {user ? (
-        <form onSubmit={handleSubmit} className="mb-6 space-y-3">
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="Add a comment..."
-            rows={3}
-            maxLength={2000}
-            disabled={submitting}
-            className="w-full resize-none rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm outline-none focus:border-gray-400 disabled:opacity-60"
-          />
-          <div className="flex items-center justify-between gap-3">
-            <span className="text-xs text-gray-400">{body.length}/2000</span>
+        <form onSubmit={handleSubmit} className="mb-8 flex items-start gap-3">
+          {user.profile_image_url ? (
+            <Image
+              src={user.profile_image_url}
+              alt=""
+              width={40}
+              height={40}
+              className="h-10 w-10 shrink-0 rounded-full object-cover"
+            />
+          ) : (
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-sm font-semibold text-zinc-600">
+              {(user.username || user.name || "?").charAt(0).toUpperCase()}
+            </div>
+          )}
+          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2 shadow-sm">
+            <input
+              type="text"
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              placeholder="Add a comment..."
+              maxLength={2000}
+              disabled={submitting}
+              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400 disabled:opacity-60"
+            />
+            <Smile size={18} className="shrink-0 text-zinc-400" />
             <button
               type="submit"
               disabled={submitting || !body.trim()}
-              className="inline-flex items-center gap-2 rounded-full bg-black px-4 py-2 text-sm font-medium text-white hover:bg-black/80 disabled:cursor-not-allowed disabled:opacity-60"
+              className="shrink-0 rounded-full bg-[var(--brand)] px-4 py-1.5 text-sm font-semibold text-white hover:bg-[var(--brand-hover)] disabled:cursor-not-allowed disabled:opacity-60"
             >
-              {submitting ? <Loader2 size={16} className="animate-spin" /> : null}
-              Comment
+              {submitting ? <Loader2 size={14} className="animate-spin" /> : "Comment"}
             </button>
           </div>
         </form>
       ) : (
-        <p className="mb-6 text-sm text-gray-500">
-          <Link href="/login" className="font-medium text-black underline">
+        <p className="mb-8 text-sm text-zinc-500">
+          <Link href="/login" className="font-medium text-[var(--brand)] hover:underline">
             Log in
           </Link>{" "}
           to leave a comment.
         </p>
       )}
 
-      {error && <p className="mb-4 rounded-lg bg-red-500/10 px-3 py-2 text-sm text-red-600">{error}</p>}
+      {error && (
+        <p className="mb-4 rounded-lg bg-[var(--brand-soft)] px-3 py-2 text-sm text-[var(--brand)]">
+          {error}
+        </p>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-8">
-          <Loader2 size={24} className="animate-spin text-gray-400" />
+          <Loader2 size={24} className="animate-spin text-zinc-400" />
         </div>
       ) : comments.length === 0 ? (
-        <p className="py-6 text-center text-sm text-gray-500">No comments yet. Be the first to comment.</p>
+        <p className="py-6 text-center text-sm text-zinc-500">
+          No comments yet. Be the first to comment.
+        </p>
       ) : (
-        <ul className="space-y-4">
+        <ul className="space-y-5">
           {comments.map((comment) => (
-            <li key={comment.id} className="flex gap-3 border-b border-gray-100 pb-4 last:border-b-0">
-              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-gray-200 text-sm font-semibold text-gray-600">
+            <li key={comment.id} className="flex gap-3">
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-sm font-semibold text-zinc-600">
                 {comment.username?.charAt(0)?.toUpperCase() ?? "?"}
               </div>
               <div className="min-w-0 flex-1">
                 <div className="flex items-start justify-between gap-2">
-                  <div>
-                    <p className="text-sm font-semibold">{comment.username}</p>
-                    <p className="text-xs text-gray-400">{formatTimeAgo(comment.created_at)}</p>
-                  </div>
+                  <p className="text-sm">
+                    <span className="font-semibold text-zinc-900">{comment.username}</span>{" "}
+                    <span className="text-xs text-zinc-400">{formatTimeAgo(comment.created_at)}</span>
+                  </p>
                   {comment.is_owner && (
                     <button
                       type="button"
                       onClick={() => handleDelete(comment.id)}
                       disabled={deletingId === comment.id}
                       aria-label="Delete comment"
-                      className="rounded p-1 text-gray-400 hover:bg-gray-100 hover:text-red-600 disabled:opacity-60"
+                      className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-[var(--brand)] disabled:opacity-60"
                     >
                       {deletingId === comment.id ? (
                         <Loader2 size={16} className="animate-spin" />
@@ -196,7 +221,14 @@ export default function CommentsSection({ videoId }) {
                     </button>
                   )}
                 </div>
-                <p className="mt-2 whitespace-pre-wrap text-sm text-gray-800">{comment.body}</p>
+                <p className="mt-1 whitespace-pre-wrap text-sm text-zinc-700">{comment.body}</p>
+                <div className="mt-2 flex items-center gap-4 text-xs font-medium text-zinc-400">
+                  <span className="inline-flex items-center gap-1">
+                    <ThumbsUp size={12} />
+                    Like
+                  </span>
+                  <span>Reply</span>
+                </div>
               </div>
             </li>
           ))}
@@ -208,7 +240,7 @@ export default function CommentsSection({ videoId }) {
           type="button"
           onClick={handleLoadMore}
           disabled={loadingMore}
-          className="mt-4 w-full rounded-xl border border-gray-200 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60"
+          className="mt-5 w-full rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
         >
           {loadingMore ? "Loading..." : "Load more comments"}
         </button>

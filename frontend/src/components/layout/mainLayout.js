@@ -3,13 +3,12 @@ import Sidebar from "./sidebar";
 
 export default function MainLayout({ children }) {
   return (
-    <div className="h-screen flex overflow-hidden">
+    <div className="flex h-screen overflow-hidden bg-[var(--surface)]">
       <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden min-h-0">
-      
-        <main className="flex-1 overflow-y-auto p-6 space-y-8 min-h-0">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden">
+        <main className="min-h-0 flex-1 overflow-y-auto px-6 py-5 lg:px-8">
           <Navbar />
-            {children}
+          {children}
         </main>
       </div>
     </div>

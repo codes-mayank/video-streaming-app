@@ -1,1 +1,45 @@
 @import "tailwindcss";
+
+:root {
+  --brand: #0365f0;
+  --brand-hover: #0451bc;
+  --brand-soft: #f2f1ff;
+  --brand-muted: #cecdfe;
+  --surface: #f4f4f5;
+  --surface-card: #ffffff;
+  --text: #18181b;
+  --text-muted: #71717a;
+  --border: #e4e4e7;
+}
+
+body {
+  background: var(--surface);
+  color: var(--text);
+}
+
+.video-js {
+  border-radius: 1rem;
+  overflow: hidden;
+}
+
+.video-js .vjs-big-play-button {
+  border-radius: 9999px;
+  border: none;
+  background-color: color-mix(in srgb, var(--brand) 85%, black);
+}
+
+.video-js:hover .vjs-big-play-button,
+.video-js .vjs-big-play-button:focus {
+  background-color: var(--brand);
+}
+
+.video-js .vjs-play-progress,
+.video-js .vjs-volume-level {
+  background-color: var(--brand);
+}
+
+.video-js .vjs-slider:focus,
+.video-js .vjs-control:focus:not(.vjs-error-display) {
+  text-shadow: none;
+  outline: none;
+}

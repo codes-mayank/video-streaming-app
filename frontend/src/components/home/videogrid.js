@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import VideoCard from "../video/videocard";
 import { getVideos, getThumbnailUrl } from "@/lib/video";
 
-const PAGE_SIZE = 12; // 3 rows × 4 columns at lg
+const PAGE_SIZE = 15; // 3 rows × 4 columns at lg
 const FALLBACK_THUMBNAIL =
   "https://placehold.co/640x360/e2e8f0/64748b?text=Video";
 
@@ -118,15 +118,15 @@ export default function VideoGrid({ category }) {
 
   return (
     <div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
         {videos.map((video) => (
           <VideoCard key={video.id} {...video} />
         ))}
       </div>
-      <div ref={sentinelRef} className="h-8 flex items-center justify-center mt-6">
-        {loadingMore && <p className="text-gray-500 text-sm">Loading more...</p>}
+      <div ref={sentinelRef} className="mt-6 flex h-8 items-center justify-center">
+        {loadingMore && <p className="text-sm text-zinc-500">Loading more...</p>}
         {!hasMore && videos.length > 0 && (
-          <p className="text-gray-400 text-sm">No more videos</p>
+          <p className="text-sm text-zinc-400">No more videos</p>
         )}
       </div>
     </div>

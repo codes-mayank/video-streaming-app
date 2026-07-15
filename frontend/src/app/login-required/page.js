@@ -19,6 +19,8 @@ const FEATURE_LABELS = {
   subscriptions: "your subscriptions",
   "watch-history": "your watch history",
   likedvideos: "your liked videos",
+  "watch-later": "Watch Later",
+  playlists: "your playlists",
 };
 
 function LoginRequiredContent() {
@@ -67,7 +69,7 @@ function LoginRequiredContent() {
             <div className="flex flex-col sm:flex-row gap-3 pt-2">
               <Link
                 href={loginHref}
-                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-black text-white px-4 py-2.5 font-medium hover:bg-black/90 transition-colors"
+                className="flex-1 inline-flex items-center justify-center gap-2 rounded-lg bg-[var(--brand)] text-white px-4 py-2.5 font-medium hover:bg-[var(--brand-hover)] transition-colors"
               >
                 <LogIn size={18} />
                 Log in

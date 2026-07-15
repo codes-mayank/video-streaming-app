@@ -3,7 +3,6 @@
 import { useEffect, useState } from "react";
 import { getLatestVideo, getThumbnailUrl } from "@/lib/video";
 import LatestVideoCard from "../video/latestvideocard";
-
 import { getCategoryLabel } from "@/lib/categories";
 
 const FALLBACK_THUMBNAIL =
@@ -13,6 +12,7 @@ function toCardProps(video) {
   return {
     id: video.id,
     title: video.title,
+    description: video.description,
     thumbnail: getThumbnailUrl(video.thumbnail_url) ?? FALLBACK_THUMBNAIL,
     views: video.views ?? 0,
     category: getCategoryLabel(video.category),
@@ -36,11 +36,13 @@ export default function Latest() {
   }, []);
 
   if (loading) {
-    return <p className="mb-6 text-gray-500">Loading latest video…</p>;
+    return (
+      <div className="mb-8 h-[230px] animate-pulse rounded-3xl bg-zinc-200 sm:h-[200px] lg:h-[220px]" />
+    );
   }
 
   if (error) {
-    return <p className="mb-6 text-red-500">{error}</p>;
+    return <p className="mb-6 text-[var(--brand)]">{error}</p>;
   }
 
   if (!video) {
