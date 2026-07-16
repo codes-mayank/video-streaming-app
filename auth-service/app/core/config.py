@@ -24,11 +24,13 @@ class Settings(BaseSettings):
     APP_NAME: str = "FastAPI App Backend"
     DEBUG: bool = False
 
-    SECRET_KEY: str = 'secret-key'
-    ALGORITHM: str = 'HS256'
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    SECRET_KEY: str = "secret-key"
+    ALGORITHM: str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
+    REFRESH_TOKEN_EXPIRE_DAYS: int = 30
 
     ACCESS_TOKEN_COOKIE_NAME: str = "access_token"
+    REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
     GOOGLE_CLIENT_ID: Optional[str] = None
 
 

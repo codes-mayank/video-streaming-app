@@ -1,5 +1,7 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8090";
 
+let refreshPromise = null;
+
 async function parseErrorResponse(res) {
   const data = await res.json().catch(() => ({}));
   const { detail } = data;
@@ -68,14 +70,46 @@ export function googleLogin(token) {
   });
 }
 
+export async function refreshSession() {
+  if (refreshPromise) return refreshPromise;
+
+  refreshPromise = (async () => {
+    const res = await fetch(`${API_BASE}/users/auth/refresh`, {
+      method: "POST",
+      credentials: "include",
+    });
+    if (!res.ok) {
+      throw new Error(await parseErrorResponse(res));
+    }
+    return true;
+  })().finally(() => {
+    refreshPromise = null;
+  });
+
+  return refreshPromise;
+}
+
 export async function getCurrentUser() {
   const res = await fetch(`${API_BASE}/users/auth/me`, {
     credentials: "include",
   });
 
-  if (res.status === 401) return null;
-  if (!res.ok) throw new Error(await parseErrorResponse(res));
+  if (res.status === 401) {
+    try {
+      await refreshSession();
+    } catch {
+      return null;
+    }
 
+    const retry = await fetch(`${API_BASE}/users/auth/me`, {
+      credentials: "include",
+    });
+    if (retry.status === 401) return null;
+    if (!retry.ok) throw new Error(await parseErrorResponse(retry));
+    return retry.json();
+  }
+
+  if (!res.ok) throw new Error(await parseErrorResponse(res));
   return res.json();
 }
 

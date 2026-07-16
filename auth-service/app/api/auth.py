@@ -1,34 +1,57 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status, UploadFile, File, Form
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from app.core.config import settings
-from app.core.security import get_password_hash, create_access_token, verify_password, create_token_payload, get_current_user
+from app.core.security import (
+    get_password_hash,
+    create_access_token,
+    create_refresh_token,
+    verify_password,
+    create_token_payload,
+    get_current_user,
+    verify_token,
+)
 from app.database import get_db
 from sqlalchemy.orm import Session
 from sqlalchemy import or_
 from app.schemas import UserIn, UserLogin, UserOut, Token, GoogleLoginRequest, ProfileImageUploadInitRequest, ProfileImageUploadInitResponse, ProfileImageUploadCompleteRequest, ProfileImageUploadCompleteResponse, EditProfileRequest
 from app.models import User
-from jose import jwt, JWTError
-from datetime import datetime, timedelta
-from typing import Optional
 from google.oauth2 import id_token
 from google.auth.transport import requests
-from pydantic import BaseModel
 from app.adapter.auth import AuthAdapter
-import base64
-import boto3
 from app.services.s3 import check_object_exists, is_supported_image_type, build_profile_photo_key, build_public_url, generate_presigned_upload_url, get_s3_client
 
 
 router = APIRouter()
 
-def _set_auth_cookie(response: Response, access_token: str) -> None:
+
+def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
     response.set_cookie(
         key=settings.ACCESS_TOKEN_COOKIE_NAME,
         value=access_token,
         httponly=True,
         samesite="lax",
         path="/",
+        max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
     )
+    response.set_cookie(
+        key=settings.REFRESH_TOKEN_COOKIE_NAME,
+        value=refresh_token,
+        httponly=True,
+        samesite="lax",
+        path="/",
+        max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+    )
+
+
+def _clear_auth_cookies(response: Response) -> None:
+    response.delete_cookie(settings.ACCESS_TOKEN_COOKIE_NAME, path="/")
+    response.delete_cookie(settings.REFRESH_TOKEN_COOKIE_NAME, path="/")
+
+
+def _issue_auth_cookies(response: Response, user: User) -> None:
+    payload = create_token_payload(user).model_dump()
+    access_token = create_access_token(data=payload)
+    refresh_token = create_refresh_token(data=payload)
+    _set_auth_cookies(response, access_token, refresh_token)
 
 def _require_storage_config() -> None:
     required_values = [
@@ -114,12 +137,8 @@ async def google_login(request: GoogleLoginRequest, response: Response, db: Sess
             detail="Account is disabled"
         )
     
-    # Generate JWT token using your existing function
-    access_token = create_access_token(data=create_token_payload(user).model_dump())
-    
-    _set_auth_cookie(response, access_token)
-    
-    return user  # Return user object, matches your UserOut schema
+    _issue_auth_cookies(response, user)
+    return user
 
 
 
@@ -144,11 +163,7 @@ async def signup(response: Response, user_in: UserIn, db: Session = Depends(get_
     db.commit()
     db.refresh(new_user)
 
-    _set_auth_cookie(
-        response,
-        create_access_token(data=create_token_payload(new_user).model_dump()),
-    )
-
+    _issue_auth_cookies(response, new_user)
     return new_user
  
 @router.post("/profile-photo-upload/initiate", response_model=ProfileImageUploadInitResponse)
@@ -258,11 +273,26 @@ async def read_users_me(token: Token = Depends(get_current_user), db: Session = 
 
 
 
+@router.post("/refresh")
+async def refresh_session(request: Request, response: Response, db: Session = Depends(get_db)):
+    refresh_token = request.cookies.get(settings.REFRESH_TOKEN_COOKIE_NAME)
+    if not refresh_token:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+
+    token = verify_token(refresh_token, "refresh")
+    user = db.query(User).filter(User.id == token.user_id).first()
+    if not user or user.disabled:
+        _clear_auth_cookies(response)
+        raise HTTPException(status_code=401, detail="Could not validate credentials")
+
+    _issue_auth_cookies(response, user)
+    return {"message": "Session refreshed"}
+
+
 @router.post("/logout")
 async def logout(response: Response):
-    response.delete_cookie(settings.ACCESS_TOKEN_COOKIE_NAME, path="/")
+    _clear_auth_cookies(response)
     return {"message": "Logged out successfully"}
-
 
 
 @router.post("/login", response_model=UserOut)
@@ -277,7 +307,6 @@ async def login(response: Response, user: UserLogin, db: Session = Depends(get_d
         raise HTTPException(status_code=400, detail="Incorrect username or email")
     if not db_user.hashed_password or not verify_password(user.password, db_user.hashed_password):
         raise HTTPException(status_code=400, detail="Incorrect password")
-    
-    access_token = create_access_token(data=create_token_payload(db_user).model_dump())
-    _set_auth_cookie(response, access_token)
+
+    _issue_auth_cookies(response, db_user)
     return db_user

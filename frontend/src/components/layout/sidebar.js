@@ -22,8 +22,6 @@ const menuItems = [
   { icon: Video, label: "Subscriptions", href: "/subscriptions" },
   { icon: ClockCounterClockwise, label: "Watch History", href: "/watch-history" },
   { icon: Heart, label: "Liked Videos", href: "/likedvideos" },
-  { icon: Clock, label: "Watch Later", href: "/watch-history", highlight: false },
-  { icon: List, label: "Playlists", href: "/likedvideos", highlight: false },
 ];
 
 function isActive(pathname, href) {
