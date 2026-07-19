@@ -22,6 +22,8 @@ class Video(Base):
     thumbnail_key = Column(String(500), nullable=True)
     thumbnail_content_type = Column(String(100), nullable=True)
     category = Column(String(50), nullable=False, server_default=text("'other'"), index=True)
+    views = Column(Integer, nullable=False, server_default=text("0"))
+    duration_seconds = Column(Integer, nullable=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
     updated_at = Column(DateTime, server_default=func.now(), onupdate=func.now(), nullable=False)
 

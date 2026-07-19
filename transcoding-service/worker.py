@@ -7,9 +7,20 @@ from app.services.kafka_queue import get_consumer
 from app.services.transcoder import transcode_to_hls
 
 
-def notify_video_service(video_id: int, status: str, hls_master_key: str | None = None, hls_prefix: str | None = None) -> None:
+def notify_video_service(
+    video_id: int,
+    status: str,
+    hls_master_key: str | None = None,
+    hls_prefix: str | None = None,
+    duration_seconds: int | None = None,
+) -> None:
     url = f"{settings.VIDEO_SERVICE_BASE_URL.rstrip('/')}/videos/{video_id}/transcode-result"
-    payload = {"status": status, "hls_master_key": hls_master_key, "hls_prefix": hls_prefix}
+    payload = {
+        "status": status,
+        "hls_master_key": hls_master_key,
+        "hls_prefix": hls_prefix,
+        "duration_seconds": duration_seconds,
+    }
     r = requests.post(url, json=payload, timeout=settings.VIDEO_SERVICE_TIMEOUT_SECONDS)
     if not r.ok:
         print(f"[transcoder] callback failed {r.status_code}: {r.text[:500]}", flush=True)
@@ -27,14 +38,20 @@ def process_message(payload: dict) -> None:
     )
     notify_video_service(video_id, "transcoding")
     try:
-        prefix, master_key = transcode_to_hls(
+        prefix, master_key, duration_seconds = transcode_to_hls(
             video_id=video_id,
             source_key=source_key,
             bucket_name=settings.AWS_BUCKET_NAME,
             output_base_prefix=output_base_prefix,
             segment_basename=segment_basename,
         )
-        notify_video_service(video_id, "ready", hls_master_key=master_key, hls_prefix=prefix)
+        notify_video_service(
+            video_id,
+            "ready",
+            hls_master_key=master_key,
+            hls_prefix=prefix,
+            duration_seconds=duration_seconds,
+        )
         print(f"[transcoder] done video_id={video_id}", flush=True)
     except Exception as exc:
         notify_video_service(video_id, "transcode_failed")

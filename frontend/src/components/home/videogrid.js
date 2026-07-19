@@ -2,9 +2,9 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import VideoCard from "../video/videocard";
-import { getVideos, getThumbnailUrl } from "@/lib/video";
+import { getVideos, getChannelVideos, getThumbnailUrl } from "@/lib/video";
 
-const PAGE_SIZE = 15; // 3 rows × 4 columns at lg
+const PAGE_SIZE = 15; // 3 rows × 5 columns at lg
 const FALLBACK_THUMBNAIL =
   "https://placehold.co/640x360/e2e8f0/64748b?text=Video";
 
@@ -15,11 +15,12 @@ function toCardProps(video) {
     thumbnail: getThumbnailUrl(video.thumbnail_url) ?? FALLBACK_THUMBNAIL,
     creator: video.uploaded_by ?? "Unknown",
     views: video.views ?? 0,
+    duration: video.duration_seconds,
     likeCount: video.like_count ?? 0,
   };
 }
 
-export default function VideoGrid({ category }) {
+export default function VideoGrid({ category, userId }) {
   const [videos, setVideos] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
   const [hasMore, setHasMore] = useState(false);
@@ -31,13 +32,15 @@ export default function VideoGrid({ category }) {
 
   const loadVideos = useCallback(
     async (cursor) => {
-      const data = await getVideos({ category, limit: PAGE_SIZE, cursor });
+      const data = userId
+        ? await getChannelVideos(userId, { limit: PAGE_SIZE, cursor })
+        : await getVideos({ category, limit: PAGE_SIZE, cursor });
       const items = (data.items ?? []).map(toCardProps);
       setVideos((prev) => (cursor ? [...prev, ...items] : items));
       setNextCursor(data.next_cursor ?? null);
       setHasMore(Boolean(data.has_more));
     },
-    [category]
+    [category, userId]
   );
 
   useEffect(() => {
@@ -118,7 +121,7 @@ export default function VideoGrid({ category }) {
 
   return (
     <div>
-      <div className="grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
         {videos.map((video) => (
           <VideoCard key={video.id} {...video} />
         ))}

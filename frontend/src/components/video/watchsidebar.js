@@ -17,6 +17,7 @@ function toCardProps(video) {
     thumbnail: getThumbnailUrl(video.thumbnail_url) ?? FALLBACK_THUMBNAIL,
     creator: video.uploaded_by ?? "Unknown",
     views: video.views ?? 0,
+    duration: video.duration_seconds,
     likeCount: video.like_count ?? 0,
     progress,
   };
@@ -52,9 +53,9 @@ export default function WatchSidebar({ excludeVideoId }) {
   }, [excludeVideoId]);
 
   return (
-    <aside className="space-y-8">
-      <section>
-        <div className="mb-4 flex items-center justify-between gap-3">
+    <aside className="space-y-8 overflow-y-auto max-h-[calc(100vh-7rem)] [&::-webkit-scrollbar]:hidden">
+      {/* <section> */}
+        {/* <div className="mb-4 flex items-center justify-between gap-3">
           <h2 className="text-base font-bold text-zinc-900">Up Next</h2>
           <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-500">
             Autoplay
@@ -74,9 +75,9 @@ export default function WatchSidebar({ excludeVideoId }) {
               />
             </button>
           </label>
-        </div>
+        </div> */}
         {/* Up Next list intentionally empty */}
-      </section>
+      {/* </section> */}
 
       {videos.length > 0 && (
         <section>

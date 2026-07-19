@@ -49,7 +49,7 @@ export default function SubscribeButton({ userId, initialSubscribed = false }) {
           type="button"
           onClick={handleToggle}
           disabled={loading || !userId}
-          className={`inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
+          className={`cursor-pointer inline-flex items-center gap-2 rounded-full px-5 py-2.5 text-sm font-semibold transition-colors disabled:cursor-not-allowed disabled:opacity-60 ${
             subscribed
               ? "bg-zinc-200 text-zinc-700 hover:bg-zinc-300"
               : "bg-[var(--brand)] text-white hover:bg-[var(--brand-hover)]"
@@ -58,15 +58,6 @@ export default function SubscribeButton({ userId, initialSubscribed = false }) {
           {loading ? <Loader2 size={16} className="animate-spin" /> : null}
           {subscribed ? "Subscribed" : "Subscribe"}
         </button>
-        {subscribed && (
-          <button
-            type="button"
-            className="flex h-10 w-10 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-            aria-label="Notifications"
-          >
-            <Bell size={16} />
-          </button>
-        )}
       </div>
       {error && <p className="text-xs text-[var(--brand)]">{error}</p>}
     </div>

@@ -43,6 +43,13 @@ export default function Navbar() {
     router.push(`/search?query=${encodeURIComponent(q)}`);
   }
 
+  function handleLogout() {
+    setDropdownOpen(false);
+    logout(); setUser(null);
+    router.push("/");
+    router.refresh();
+  }
+
   const displayName =
     user?.full_name || user?.name || user?.username || "Account";
 
@@ -57,12 +64,12 @@ export default function Navbar() {
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          placeholder="Search videos, channels..."
+          placeholder="Search videos..."
           className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
         />
-        <kbd className="hidden shrink-0 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 sm:inline">
+        {/* <kbd className="hidden shrink-0 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 sm:inline">
           ⌘ K
-        </kbd>
+        </kbd> */}
       </form>
 
       <div className="flex items-space-between gap-2">
@@ -140,7 +147,7 @@ export default function Navbar() {
                     </Link>
                     <Link
                       href="/"
-                      onClick={() => {setDropdownOpen(false); logout(); setUser(null); router.refresh();}}
+                      onClick={handleLogout}
                       className="rounded-xl border border-zinc-200 py-2 text-center text-sm font-medium transition-colors hover:bg-zinc-50"
                     >
                       Logout

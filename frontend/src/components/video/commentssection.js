@@ -7,6 +7,7 @@ import { useRouter } from "next/navigation";
 import { ChevronDown, Loader2, Smile, ThumbsUp, Trash2 } from "lucide-react";
 import { getCurrentUser } from "@/lib/auth";
 import { createComment, deleteComment, getComments } from "@/lib/video";
+import EmojiPicker from "emoji-picker-react";
 
 function formatTimeAgo(dateString) {
   const seconds = Math.floor((Date.now() - new Date(dateString).getTime()) / 1000);
@@ -30,6 +31,7 @@ export default function CommentsSection({ videoId }) {
   const [submitting, setSubmitting] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
 
   const loadComments = useCallback(async (cursor) => {
     const data = await getComments(videoId, { cursor });
@@ -125,13 +127,6 @@ export default function CommentsSection({ videoId }) {
         <h2 className="text-lg font-bold text-zinc-900">
           Comments {total > 0 && <span className="font-semibold text-zinc-500">({total})</span>}
         </h2>
-        <button
-          type="button"
-          className="inline-flex items-center gap-1 text-sm font-medium text-zinc-500 hover:text-zinc-800"
-        >
-          Sort by
-          <ChevronDown size={14} />
-        </button>
       </div>
 
       {user ? (
@@ -149,7 +144,12 @@ export default function CommentsSection({ videoId }) {
               {(user.username || user.name || "?").charAt(0).toUpperCase()}
             </div>
           )}
-          <div className="flex min-w-0 flex-1 items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2 shadow-sm">
+          <div className="relative flex min-w-0 flex-1 items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2 shadow-sm">
+            {showEmojiPicker && (
+              <div className="absolute z-50 bottom-full right-0 h-md">
+                <EmojiPicker width={300} height={300} previewConfig={{ showPreview: false }} onEmojiClick={(emoji) => setBody(prev => prev + emoji.emoji)} />
+              </div>
+            )}
             <input
               type="text"
               value={body}
@@ -159,7 +159,7 @@ export default function CommentsSection({ videoId }) {
               disabled={submitting}
               className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400 disabled:opacity-60"
             />
-            <Smile size={18} className="shrink-0 text-zinc-400" />
+            <Smile size={18} onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="shrink-0 text-zinc-400" />
             <button
               type="submit"
               disabled={submitting || !body.trim()}

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import MainLayout from "@/components/layout/mainLayout";
 import VideoCard from "@/components/video/videocard";
 import AuthGate from "@/components/auth/authgate";
+import { Heart } from "@phosphor-icons/react";
 import { getLikedVideos, getThumbnailUrl } from "@/lib/video";
 
 const FALLBACK_THUMBNAIL =
@@ -16,6 +17,7 @@ function toCardProps(video) {
     thumbnail: getThumbnailUrl(video.thumbnail_url) ?? FALLBACK_THUMBNAIL,
     creator: video.uploaded_by ?? "Unknown",
     views: video.views ?? 0,
+    duration: video.duration_seconds,
     likeCount: video.like_count ?? 0,
   };
 }
@@ -36,7 +38,10 @@ function LikedVideosContent() {
 
   return (
     <MainLayout>
-      <h2 className="text-2xl font-bold mb-6">Liked Videos</h2>
+      <div className="flex items-center gap-2 mb-6">
+      <Heart size={24} weight="fill" className="text-[var(--brand)] rounded-full" />
+      <h2 className="text-2xl font-bold">Liked Videos</h2>
+      </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
         {likedVideos.map((video) => (
           <VideoCard key={video.id} {...video} />

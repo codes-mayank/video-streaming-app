@@ -11,6 +11,7 @@ import {
   Scissors,
   Share2,
 } from "lucide-react";
+import { SealCheck } from "@phosphor-icons/react";
 import MainLayout from "@/components/layout/mainLayout";
 import VideoPlayer from "@/components/auth/videoplayer";
 import LikeButton from "@/components/video/likebutton";
@@ -90,8 +91,8 @@ export default function WatchPage() {
       {!video && !error && <p className="text-zinc-500">Loading video...</p>}
 
       {video && (
-        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_320px]">
-          <div className="min-w-0">
+        <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_260px]">
+          <div className="min-w-0 overflow-y-auto max-h-[calc(100vh-7rem)] [&::-webkit-scrollbar]:hidden">
             <div className="overflow-hidden rounded-2xl bg-black shadow-sm">
               {playbackUrl ? (
                 <VideoPlayer key={id} options={playerOptions} />
@@ -140,7 +141,7 @@ export default function WatchPage() {
                   initialCount={video.like_count ?? 0}
                   initialLiked={Boolean(video.liked)}
                 />
-                <button
+                {/* <button
                   type="button"
                   className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200"
                 >
@@ -167,7 +168,7 @@ export default function WatchPage() {
                   aria-label="More"
                 >
                   <MoreHorizontal size={16} />
-                </button>
+                </button> */}
               </div>
             </div>
 
@@ -180,7 +181,7 @@ export default function WatchPage() {
                   <div className="min-w-0">
                     <p className="flex items-center gap-1 font-semibold text-zinc-900">
                       <span className="truncate">{channelName}</span>
-                      <BadgeCheck size={16} className="shrink-0 text-sky-500" />
+                      <SealCheck size={16} weight="fill" className="shrink-0 text-sky-500" />
                     </p>
                     <p className="text-xs text-zinc-500">Channel</p>
                   </div>

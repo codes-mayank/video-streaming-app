@@ -12,6 +12,7 @@ then we rearrange into:
     480p/…
 """
 
+import math
 import re
 import shutil
 import subprocess
@@ -50,6 +51,30 @@ def _probe_has_audio(path: Path) -> bool:
     if result.returncode != 0:
         return False
     return bool((result.stdout or "").strip())
+
+
+def _probe_duration_seconds(path: Path) -> int:
+    cmd = [
+        settings.FFPROBE_BINARY,
+        "-v",
+        "error",
+        "-show_entries",
+        "format=duration",
+        "-of",
+        "default=noprint_wrappers=1:nokey=1",
+        str(path),
+    ]
+    result = subprocess.run(cmd, capture_output=True, text=True)
+    if result.returncode != 0:
+        err = (result.stderr or result.stdout or "").strip()
+        raise RuntimeError(f"ffprobe failed (exit {result.returncode}): {err[:1000]}")
+    try:
+        duration = float((result.stdout or "").strip())
+    except ValueError as exc:
+        raise RuntimeError("ffprobe returned an invalid video duration") from exc
+    if not math.isfinite(duration) or duration < 0:
+        raise RuntimeError("ffprobe returned an invalid video duration")
+    return math.ceil(duration)
 
 
 def _run(cmd: list[str], *, cwd: str | None = None) -> None:
@@ -127,7 +152,7 @@ def transcode_to_hls(
     *,
     output_base_prefix: str,
     segment_basename: str,
-) -> tuple[str, str]:
+) -> tuple[str, str, int]:
     base = output_base_prefix.strip("/")
     seg_name = _safe_segment_basename(segment_basename)
     seg_seconds = max(2, min(30, settings.HLS_SEGMENT_SECONDS))
@@ -145,6 +170,7 @@ def transcode_to_hls(
     client = get_s3_client()
     client.download_file(bucket_name, source_key, str(input_path))
 
+    duration_seconds = _probe_duration_seconds(input_path)
     has_audio = _probe_has_audio(input_path)
 
     # force_divisible_by=2: libx264 rejects odd dimensions (e.g. 853x480 from 854x480 box).
@@ -254,4 +280,4 @@ def transcode_to_hls(
 
     master_key = _upload_directory(layout, base, bucket_name)
     shutil.rmtree(workdir, ignore_errors=True)
-    return base, master_key
+    return base, master_key, duration_seconds

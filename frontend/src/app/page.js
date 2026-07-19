@@ -15,7 +15,7 @@ export default function Home() {
     <MainLayout>
       <Latest />
       <CategoryFilter selected={selectedCategory} onSelect={setSelectedCategory} />
-      <VideoSection title="Trending Videos" category={categoryFilter} href="/" />
+      <VideoSection title="Videos" category={categoryFilter} href="/" />
     </MainLayout>
   );
 }

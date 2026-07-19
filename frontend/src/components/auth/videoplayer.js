@@ -259,7 +259,7 @@ export default function VideoPlayer({ options, onReady }) {
     <div data-vjs-player className="w-full">
       <div ref={videoRef} />
       {hlsPlayback && (
-        <div className="mt-3 flex items-center gap-2">
+        <div className="bg-white p-2 flex items-center gap-2">
           <label htmlFor="quality-select" className="text-sm font-medium text-gray-700">
             Quality
           </label>

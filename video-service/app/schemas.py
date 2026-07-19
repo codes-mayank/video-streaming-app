@@ -66,6 +66,8 @@ class VideoResponse(BaseModel):
     thumbnail_key: str | None = None
     thumbnail_content_type: str | None = None
     category: str = DEFAULT_VIDEO_CATEGORY
+    views: int = 0
+    duration_seconds: int | None = None
     created_at: datetime
     updated_at: datetime
     playback_url: str | None = None
@@ -116,6 +118,7 @@ class TranscodeUpdateRequest(BaseModel):
     status: str = Field(..., min_length=1, max_length=50)
     hls_master_key: str | None = Field(default=None, max_length=500)
     hls_prefix: str | None = Field(default=None, max_length=500)
+    duration_seconds: int | None = Field(default=None, ge=0)
 
 
 class User(BaseModel):

@@ -116,7 +116,7 @@ export default function Sidebar() {
             subscriptions.map((channel) => (
               <Link
                 key={channel.id ?? channel.username}
-                href="/subscriptions"
+                href={`/channel/${channel.id}`}
                 className="flex items-center gap-3 rounded-xl px-2 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100"
               >
                 <ChannelAvatar

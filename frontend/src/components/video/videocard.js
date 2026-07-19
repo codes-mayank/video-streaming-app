@@ -1,5 +1,8 @@
 import Link from "next/link";
-import { MoreVertical, BadgeCheck } from "lucide-react";
+import { MoreVertical } from "lucide-react";
+import Image from "next/image";
+
+const placeholderThumbnail = "https://placehold.co/320x180";
 
 function formatViews(count) {
   const views = Number(count) || 0;
@@ -16,18 +19,22 @@ function formatViews(count) {
 function formatDuration(seconds) {
   if (!seconds && seconds !== 0) return null;
   const total = Math.max(0, Math.floor(Number(seconds)));
+  if (!Number.isFinite(total)) return null;
+  const h = Math.floor(total / 3600);
   const m = Math.floor(total / 60);
   const s = total % 60;
+  if (h > 0) {
+    return `${h}:${String(m % 60).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
+  }
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
 export default function VideoCard({
   id,
   title,
-  thumbnail,
+  thumbnail = placeholderThumbnail,
   creator,
   views,
-  likeCount = 0,
   duration,
   progress,
   createdAtLabel,
@@ -38,13 +45,15 @@ export default function VideoCard({
   return (
     <Link href={`/watch/${id}`} className="group block">
       <div className="relative aspect-video overflow-hidden rounded-2xl bg-zinc-200 shadow-sm">
-        <img
+        <Image
           src={thumbnail}
           alt={title}
-          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          width={320}
+          height={180}
+          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
         />
         {durationLabel && (
-          <span className="absolute bottom-2 right-2 rounded-md bg-black/75 px-1.5 py-0.5 text-[11px] font-semibold text-white">
+          <span className="absolute bottom-2 right-2 rounded-sm bg-black/60 px-1.5 py-0.5 text-[11px] font-semibold text-white">
             {durationLabel}
           </span>
         )}
@@ -69,16 +78,15 @@ export default function VideoCard({
               className="mt-0.5 shrink-0 text-zinc-400 opacity-0 transition-opacity group-hover:opacity-100"
             />
           </div>
-          <p className="mt-1 flex items-center gap-1 text-sm text-zinc-500">
+          <div className="mt-1 flex justify-between items-center gap-1 text-sm text-zinc-500">
             <span className="truncate">{creator}</span>
-            <BadgeCheck size={14} className="shrink-0 text-sky-500" />
-          </p>
-          <p className="mt-0.5 text-xs text-zinc-400">
+            <div className="mt-0.5 text-xs text-zinc-400">
             {formatViews(views)}
-            {likeCount > 0 ? ` · ${likeCount} ${likeCount === 1 ? "like" : "likes"}` : ""}
             {createdAtLabel ? ` · ${createdAtLabel}` : ""}
             {hasProgress ? ` · ${Math.round(progress)}%` : ""}
-          </p>
+            </div>
+          </div>
+          
         </div>
       </div>
     </Link>

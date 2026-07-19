@@ -88,6 +88,28 @@ export async function getSubscriptions() {
   return res.json();
 }
 
+export async function getChannel(userId) {
+  const res = await fetch(`${API_BASE}/videos/channel/${userId}`, fetchOptions);
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  return res.json();
+}
+
+export async function getChannelVideos(userId, { limit = 15, cursor } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor_id", String(cursor));
+
+  const res = await fetch(
+    `${API_BASE}/videos/channel/${userId}/videos?${params}`,
+    fetchOptions
+  );
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  return res.json();
+}
+
 async function likeRequest(videoId, method) {
   const res = await fetch(`${API_BASE}/videos/${videoId}/like`, {
     ...fetchOptions,

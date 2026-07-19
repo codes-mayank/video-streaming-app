@@ -17,6 +17,7 @@ function toCardProps(video) {
     thumbnail: getThumbnailUrl(video.thumbnail_url) ?? FALLBACK_THUMBNAIL,
     creator: video.uploaded_by ?? "Unknown",
     views: video.views ?? 0,
+    duration: video.duration_seconds,
   };
 }
 

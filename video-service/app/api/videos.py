@@ -17,6 +17,7 @@ from app.services.redis import (
     get_cache,
     invalidate_comments_cache,
     invalidate_video_caches,
+    invalidate_video_detail_cache,
     set_cache,
 )
 
@@ -278,6 +279,98 @@ def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_d
         expires_in_seconds=settings.AWS_PRESIGNED_EXPIRES_SECONDS,
     )
 
+
+@router.post("/{video_id}/upload", status_code=status.HTTP_204_NO_CONTENT)
+async def upload_file_to_storage(
+    video_id: int,
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+) -> Response:
+    """
+    Same-origin upload: browser sends the file here; the server writes to S3/R2.
+    Avoids CORS on direct PUT to the pre-signed URL (bucket CORS is not required for this path).
+    """
+    _require_storage_config()
+
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    if video.status != "upload_initiated":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Video is not awaiting upload. Initiate a new upload, or complete if the object is already in storage.",
+        )
+
+    incoming_ct = (file.content_type or "").strip()
+    if incoming_ct and incoming_ct != video.content_type:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Content-Type must match initiate ({video.content_type}).",
+        )
+
+    client = get_s3_client()
+    try:
+        client.upload_fileobj(
+            file.file,
+            settings.AWS_BUCKET_NAME,
+            video.file_key,
+            ExtraArgs={"ContentType": video.content_type},
+        )
+    finally:
+        await file.close()
+
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.post("/{video_id}/complete", response_model=VideoCompleteUploadResponse)
+def complete_upload(video_id: int, db: Session = Depends(get_db)):
+    _require_storage_config()
+
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+
+    if not check_object_exists(video.file_key):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Upload not found in object storage. Ensure client uploaded the file.",
+        )
+    if not video.thumbnail_key or not check_object_exists(video.thumbnail_key):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Thumbnail not found in object storage. Ensure client uploaded the thumbnail.",
+        )
+    if not is_supported_video_content_type(video.content_type):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid video content type.",
+        )
+
+    video.status = "uploaded"
+    db.add(video)
+    db.commit()
+    db.refresh(video)
+    queued, qerr = try_publish_transcode_job(
+        video.id,
+        video.file_key,
+        video.content_type,
+        output_base_prefix=video.storage_base_prefix,
+        segment_basename=video.video_basename,
+    )
+
+    invalidate_video_caches(video.id)
+    return VideoCompleteUploadResponse(
+        id=video.id,
+        status=video.status,
+        file_key=video.file_key,
+        bucket=settings.AWS_BUCKET_NAME,
+        hls_output_prefix=video.storage_base_prefix or f"hls/{video.id}",
+        transcode_job_queued=queued,
+        transcode_queue_error=qerr,
+    )
+
+
+
 @router.get("/categories")
 def list_categories() -> dict[str, list[str]]:
     return {
@@ -337,47 +430,6 @@ def get_latest_video(request: Request, db: Session = Depends(get_db)):
     _apply_liked_status(db, [item], current_user.user_id if current_user else None)
     return item
 
-@router.post("/{video_id}/upload", status_code=status.HTTP_204_NO_CONTENT)
-async def upload_file_to_storage(
-    video_id: int,
-    file: UploadFile = File(...),
-    db: Session = Depends(get_db),
-) -> Response:
-    """
-    Same-origin upload: browser sends the file here; the server writes to S3/R2.
-    Avoids CORS on direct PUT to the pre-signed URL (bucket CORS is not required for this path).
-    """
-    _require_storage_config()
-
-    video = db.query(Video).filter(Video.id == video_id).first()
-    if not video:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-    if video.status != "upload_initiated":
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Video is not awaiting upload. Initiate a new upload, or complete if the object is already in storage.",
-        )
-
-    incoming_ct = (file.content_type or "").strip()
-    if incoming_ct and incoming_ct != video.content_type:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Content-Type must match initiate ({video.content_type}).",
-        )
-
-    client = get_s3_client()
-    try:
-        client.upload_fileobj(
-            file.file,
-            settings.AWS_BUCKET_NAME,
-            video.file_key,
-            ExtraArgs={"ContentType": video.content_type},
-        )
-    finally:
-        await file.close()
-
-    return Response(status_code=status.HTTP_204_NO_CONTENT)
-
 
 @router.post("/{video_id}/thumbnail/upload", status_code=status.HTTP_204_NO_CONTENT)
 async def upload_thumbnail_to_storage(
@@ -422,52 +474,6 @@ async def upload_thumbnail_to_storage(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-@router.post("/{video_id}/complete", response_model=VideoCompleteUploadResponse)
-def complete_upload(video_id: int, db: Session = Depends(get_db)):
-    _require_storage_config()
-
-    video = db.query(Video).filter(Video.id == video_id).first()
-    if not video:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
-
-    if not check_object_exists(video.file_key):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Upload not found in object storage. Ensure client uploaded the file.",
-        )
-    if not video.thumbnail_key or not check_object_exists(video.thumbnail_key):
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail="Thumbnail not found in object storage. Ensure client uploaded the thumbnail.",
-        )
-    if not is_supported_video_content_type(video.content_type):
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Invalid video content type.",
-        )
-
-    video.status = "uploaded"
-    db.add(video)
-    db.commit()
-    db.refresh(video)
-    queued, qerr = try_publish_transcode_job(
-        video.id,
-        video.file_key,
-        video.content_type,
-        output_base_prefix=video.storage_base_prefix,
-        segment_basename=video.video_basename,
-    )
-
-    invalidate_video_caches(video.id)
-    return VideoCompleteUploadResponse(
-        id=video.id,
-        status=video.status,
-        file_key=video.file_key,
-        bucket=settings.AWS_BUCKET_NAME,
-        hls_output_prefix=video.storage_base_prefix or f"hls/{video.id}",
-        transcode_job_queued=queued,
-        transcode_queue_error=qerr,
-    )
 
 
 @router.post("/{video_id}/transcode-result", response_model=VideoCompleteUploadResponse)
@@ -481,6 +487,8 @@ def update_transcode_result(video_id: int, payload: TranscodeUpdateRequest, db: 
         video.hls_master_key = payload.hls_master_key
     if payload.hls_prefix is not None:
         video.hls_prefix = payload.hls_prefix
+    if payload.duration_seconds is not None:
+        video.duration_seconds = payload.duration_seconds
 
     db.add(video)
     db.commit()
@@ -885,6 +893,49 @@ def get_subscriptions(db: Session = Depends(get_db), current_user=Depends(get_cu
     )
     return subscribed_channels
 
+
+@router.get("/channel/{user_id}", response_model=UserListResponse)
+def get_channel(user_id: int, db: Session = Depends(get_db)):
+    channel = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+    return channel
+
+
+@router.get("/channel/{user_id}/videos", response_model=VideoListResponse)
+def list_channel_videos(
+    user_id: int,
+    request: Request,
+    limit: int = Query(default=15, ge=1, le=100),
+    cursor_id: int | None = Query(default=None),
+    db: Session = Depends(get_db),
+):
+    channel = db.query(UserModel).filter(UserModel.id == user_id).first()
+    if not channel:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Channel not found")
+
+    current_user = get_current_user_optional(request)
+    query = (
+        db.query(Video)
+        .filter(Video.user_id == str(user_id))
+        .order_by(Video.id.desc())
+    )
+    if cursor_id:
+        query = query.filter(Video.id < cursor_id)
+
+    videos = query.limit(limit).all()
+    items = _enrich_videos_batch(db, videos, current_user_id=None)
+    next_cursor = videos[-1].id if len(videos) == limit else None
+    response = VideoListResponse(
+        items=items,
+        limit=limit,
+        next_cursor=next_cursor,
+        has_more=next_cursor is not None,
+    )
+    _apply_liked_status(db, response.items, current_user.user_id if current_user else None)
+    return response
+
+
 @router.post("/{user_id}/subscribe", response_model=SubscriptionResponse)
 def subscribe_to_channel(user_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
     if not current_user:
@@ -913,7 +964,18 @@ def unsubscribe_from_channel(user_id: int, db: Session = Depends(get_db), curren
 def get_video(video_id: int, request: Request, db: Session = Depends(get_db), background_tasks: BackgroundTasks = BackgroundTasks()):
     video = _get_video_or_404(db, video_id)
     current_user = get_current_user_optional(request)
+
+    # Count a view each time the watch page loads this video.
+    db.query(Video).filter(Video.id == video_id).update(
+        {Video.views: Video.views + 1},
+        synchronize_session=False,
+    )
+    db.commit()
+    db.refresh(video)
+    invalidate_video_detail_cache(video_id)
+
     item = _cached_video_response(db, video, current_user.user_id if current_user else None)
+    item.views = video.views
     background_tasks.add_task(add_watch_history, video_id, current_user if current_user else None, db)
     return item
 
