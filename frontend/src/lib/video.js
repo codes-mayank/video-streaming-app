@@ -40,6 +40,14 @@ export async function getLatestVideo() {
   return Array.isArray(data) ? data[0] ?? null : data;
 }
 
+export async function getMostLikedVideos(limit = 5) {
+  const res = await fetch(`${API_BASE}/videos/most-liked?limit=${limit}`, fetchOptions);
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+  return res.json();
+}
+
 export async function getVideos({ category, limit = 12, cursor } = {}) {
   const params = new URLSearchParams({ limit: String(limit) });
   if (category) params.set("category", category);

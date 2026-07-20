@@ -14,8 +14,9 @@ import {
   CaretDown,
 } from "@phosphor-icons/react";
 import { usePathname } from "next/navigation";
-import { getCurrentUser } from "@/lib/auth";
+import { getCurrentUser, onAuthChanged } from "@/lib/auth";
 import { getSubscriptions } from "@/lib/video";
+import { channelPath } from "@/lib/videoId";
 
 const menuItems = [
   { icon: House, label: "Home", href: "/" },
@@ -56,20 +57,33 @@ export default function Sidebar() {
 
   useEffect(() => {
     let cancelled = false;
-    getCurrentUser()
-      .then((user) => {
-        if (!user || cancelled) return null;
-        return getSubscriptions();
-      })
-      .then((channels) => {
-        if (cancelled || !channels) return;
-        const list = Array.isArray(channels) ? channels : channels.items ?? [];
-        setSubscriptions(list.slice(0, 5));
-      })
-      .catch(() => {});
+
+    function loadSubscriptions() {
+      getCurrentUser()
+        .then((user) => {
+          if (cancelled) return null;
+          if (!user) {
+            setSubscriptions([]);
+            return null;
+          }
+          return getSubscriptions();
+        })
+        .then((channels) => {
+          if (cancelled || !channels) return;
+          const list = Array.isArray(channels) ? channels : channels.items ?? [];
+          setSubscriptions(list.slice(0, 5));
+        })
+        .catch(() => {
+          if (!cancelled) setSubscriptions([]);
+        });
+    }
+
+    loadSubscriptions();
+    const unsubscribe = onAuthChanged(loadSubscriptions);
 
     return () => {
       cancelled = true;
+      unsubscribe();
     };
   }, []);
 
@@ -116,7 +130,7 @@ export default function Sidebar() {
             subscriptions.map((channel) => (
               <Link
                 key={channel.id ?? channel.username}
-                href={`/channel/${channel.id}`}
+                href={channelPath(channel.id)}
                 className="flex items-center gap-3 rounded-xl px-2 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100"
               >
                 <ChannelAvatar

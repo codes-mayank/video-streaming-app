@@ -2,6 +2,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { User } from "lucide-react";
 import { SealCheck} from "@phosphor-icons/react";
+import { channelPath } from "@/lib/videoId";
 
 const ACCENT_STYLES = [
   { button: "bg-[var(--brand-soft)] text-[var(--brand)] hover:bg-[var(--brand-muted)]" },
@@ -53,7 +54,7 @@ export default function ChannelCard({
       </p>
 
       <Link
-        href={`/channel/${id}`}
+        href={channelPath(id)}
         className={`mt-4 inline-flex w-full items-center justify-center rounded-xl px-3 py-2.5 text-sm font-semibold transition-colors ${accent.button}`}
       >
         View Channel

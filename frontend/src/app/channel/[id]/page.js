@@ -10,6 +10,7 @@ import MainLayout from "@/components/layout/mainLayout";
 import VideoGrid from "@/components/home/videogrid";
 import SubscribeButton from "@/components/video/subscribebutton";
 import { getChannel } from "@/lib/video";
+import { decodeChannelId } from "@/lib/videoId";
 import { getCurrentUser } from "@/lib/auth";
 
 export default function ChannelPage() {
@@ -23,11 +24,18 @@ export default function ChannelPage() {
     let cancelled = false;
 
     async function load() {
+      const channelId = decodeChannelId(id);
+      if (!channelId) {
+        setError("Channel not found");
+        setLoading(false);
+        return;
+      }
+
       setLoading(true);
       setError(null);
       try {
         const [channelData, currentUser] = await Promise.all([
-          getChannel(id),
+          getChannel(channelId),
           getCurrentUser().catch(() => null),
         ]);
         if (cancelled) return;

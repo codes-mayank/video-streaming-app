@@ -43,9 +43,14 @@ export default function Navbar() {
     router.push(`/search?query=${encodeURIComponent(q)}`);
   }
 
-  function handleLogout() {
+  async function handleLogout() {
     setDropdownOpen(false);
-    logout(); setUser(null);
+    setUser(null);
+    try {
+      await logout();
+    } catch {
+      // Cookies may already be cleared server-side; ignore network errors.
+    }
     router.push("/");
     router.refresh();
   }

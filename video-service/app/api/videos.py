@@ -431,6 +431,41 @@ def get_latest_video(request: Request, db: Session = Depends(get_db)):
     return item
 
 
+@router.get("/most-liked", response_model=list[VideoResponse])
+def get_most_liked_videos(
+    request: Request,
+    limit: int = Query(default=5, ge=1, le=20),
+    db: Session = Depends(get_db),
+):
+    current_user = get_current_user_optional(request)
+    cache_key = f"{VIDEOS_LIST_CACHE_PREFIX}most_liked:{limit}"
+
+    cached_data = get_cache(cache_key)
+    if cached_data:
+        items = [VideoResponse.model_validate(item) for item in cached_data]
+        _apply_liked_status(db, items, current_user.user_id if current_user else None)
+        return items
+
+    like_counts = (
+        db.query(VideoLike.video_id, func.count(VideoLike.user_id).label("like_count"))
+        .group_by(VideoLike.video_id)
+        .subquery()
+    )
+    videos = (
+        db.query(Video)
+        .filter(Video.status == "ready")
+        .outerjoin(like_counts, Video.id == like_counts.c.video_id)
+        .order_by(func.coalesce(like_counts.c.like_count, 0).desc(), Video.id.desc())
+        .limit(limit)
+        .all()
+    )
+
+    items = _enrich_videos_batch(db, videos, current_user_id=None)
+    set_cache(cache_key, [item.model_dump(mode="json") for item in items])
+    _apply_liked_status(db, items, current_user.user_id if current_user else None)
+    return items
+
+
 @router.post("/{video_id}/thumbnail/upload", status_code=status.HTTP_204_NO_CONTENT)
 async def upload_thumbnail_to_storage(
     video_id: int,

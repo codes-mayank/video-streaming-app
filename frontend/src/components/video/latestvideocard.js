@@ -2,6 +2,7 @@ import Link from "next/link";
 import { Play, Plus, ChevronLeft, ChevronRight } from "lucide-react";
 import { PlayCircle } from "@phosphor-icons/react";
 import Image from "next/image";
+import { watchPath } from "@/lib/videoId";
 
 function formatViews(count) {
   const views = Number(count) || 0;
@@ -32,15 +33,21 @@ export default function LatestVideoCard({
   description,
   thumbnail,
   views,
+  likeCount,
   category,
   createdAt,
 }) {
-  const meta = [formatViews(views), formatTimeAgo(createdAt), category]
+  const meta = [
+    formatViews(views),
+    likeCount > 0 ? `${likeCount} ${likeCount === 1 ? "like" : "likes"}` : null,
+    formatTimeAgo(createdAt),
+    category,
+  ]
     .filter(Boolean)
     .join(" • ");
 
   return (
-    <Link href={`/watch/${id}`}>
+    <Link href={watchPath(id)}>
     <article className="group relative overflow-hidden rounded-3xl bg-zinc-900 shadow-xl">
       <div className="relative h-[230px] w-full sm:h-[200px] lg:h-[220px]">
         <Image
@@ -85,14 +92,14 @@ export default function LatestVideoCard({
 
           {/* <div className="mt-3 flex items-center gap-3">
             <Link
-              href={`/watch/${id}`}
+              href={watchPath(id)}
               className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100"
             >
               <Play size={14} fill="currentColor" />
               Watch Now
             </Link>
             <Link
-              href={`/watch/${id}`}
+              href={watchPath(id)}
               className="flex h-9 w-9 items-center justify-center rounded-full border border-white/40 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
               aria-label="Add"
             >

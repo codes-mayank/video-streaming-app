@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { MoreVertical } from "lucide-react";
 import Image from "next/image";
+import { watchPath } from "@/lib/videoId";
 
 const placeholderThumbnail = "https://placehold.co/320x180";
 
@@ -43,7 +44,7 @@ export default function VideoCard({
   const hasProgress = typeof progress === "number" && progress > 0;
 
   return (
-    <Link href={`/watch/${id}`} className="group block">
+    <Link href={watchPath(id)} className="group block">
       <div className="relative aspect-video overflow-hidden rounded-2xl bg-zinc-200 shadow-sm">
         <Image
           src={thumbnail}

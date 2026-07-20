@@ -20,6 +20,7 @@ import {
 import MainLayout from "@/components/layout/mainLayout";
 import { getCurrentUser } from "@/lib/auth";
 import { uploadVideo } from "@/lib/video";
+import { watchPath } from "@/lib/videoId";
 import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES } from "@/lib/categories";
 
 const TITLE_MAX = 100;
@@ -161,7 +162,7 @@ export default function UploadPage() {
       }
 
       setStatus("Upload complete! Transcoding started.");
-      router.push(`/watch/${result.id}`);
+      router.push(watchPath(result.id));
     } catch (err) {
       setError(err.message);
       setStatus("");

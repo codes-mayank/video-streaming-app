@@ -19,6 +19,7 @@ import CommentsSection from "@/components/video/commentssection";
 import SubscribeButton from "@/components/video/subscribebutton";
 import WatchSidebar from "@/components/video/watchsidebar";
 import { getVideo, getPlaybackSource } from "@/lib/video";
+import { decodeVideoId } from "@/lib/videoId";
 import { getCurrentUser } from "@/lib/auth";
 import { getCategoryLabel } from "@/lib/categories";
 
@@ -53,8 +54,14 @@ export default function WatchPage() {
   const [descExpanded, setDescExpanded] = useState(false);
 
   useEffect(() => {
+    const videoId = decodeVideoId(id);
+    if (!videoId) {
+      setError("Video not found");
+      return;
+    }
+
     getCurrentUser().then(setUser).catch(() => setUser(null));
-    getVideo(id)
+    getVideo(videoId)
       .then(setVideo)
       .catch((err) => setError(err.message));
   }, [id]);

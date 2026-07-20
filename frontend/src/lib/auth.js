@@ -1,6 +1,19 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8090";
+const AUTH_CHANGED_EVENT = "auth-changed";
 
 let refreshPromise = null;
+
+function notifyAuthChanged() {
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
+  }
+}
+
+export function onAuthChanged(callback) {
+  if (typeof window === "undefined") return () => {};
+  window.addEventListener(AUTH_CHANGED_EVENT, callback);
+  return () => window.removeEventListener(AUTH_CHANGED_EVENT, callback);
+}
 
 async function parseErrorResponse(res) {
   const data = await res.json().catch(() => ({}));
@@ -41,8 +54,8 @@ async function authFetch(path, options = {}) {
   return text ? JSON.parse(text) : null;
 }
 
-export function signup({ username, email, fullName, password }) {
-  return authFetch("/users/auth/signup", {
+export async function signup({ username, email, fullName, password }) {
+  const user = await authFetch("/users/auth/signup", {
     method: "POST",
     body: JSON.stringify({
       username,
@@ -51,23 +64,29 @@ export function signup({ username, email, fullName, password }) {
       password,
     }),
   });
+  notifyAuthChanged();
+  return user;
 }
 
-export function login(usernameOrEmail, password) {
-  return authFetch("/users/auth/login", {
+export async function login(usernameOrEmail, password) {
+  const user = await authFetch("/users/auth/login", {
     method: "POST",
     body: JSON.stringify({
       username_or_email: usernameOrEmail,
       password,
     }),
   });
+  notifyAuthChanged();
+  return user;
 }
 
-export function googleLogin(token) {
-  return authFetch("/users/auth/google/login", {
+export async function googleLogin(token) {
+  const user = await authFetch("/users/auth/google/login", {
     method: "POST",
     body: JSON.stringify({ token }),
   });
+  notifyAuthChanged();
+  return user;
 }
 
 export async function refreshSession() {
@@ -183,6 +202,7 @@ export async function uploadProfileImage(file) {
   return profile_image_url;
 }
 
-export function logout() {
-  return authFetch("/users/auth/logout", { method: "POST" });
+export async function logout() {
+  await authFetch("/users/auth/logout", { method: "POST" });
+  notifyAuthChanged();
 }
