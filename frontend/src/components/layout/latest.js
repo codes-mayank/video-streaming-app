@@ -68,7 +68,7 @@ export default function Latest() {
 
   return (
     <section className="relative mb-8">
-      <div className="overflow-hidden rounded-3xl">
+      <div className="overflow-hidden rounded-3xl shadow-xl">
         <div
           className="flex transition-transform duration-700 ease-in-out"
           style={{ transform: `translateX(-${current * 100}%)` }}
@@ -102,7 +102,7 @@ export default function Latest() {
             </button>
           </div>
 
-          <div className="absolute bottom-3 left-1/2 z-10 flex -translate-x-1/2 gap-1.5">
+          <div className="absolute bottom-3 left-1/2 z-10 bg-black/50 p-2 rounded-full flex -translate-x-1/2 gap-1.5">
             {videos.map((video, index) => (
               <button
                 key={video.id}
@@ -111,8 +111,8 @@ export default function Latest() {
                 aria-label={`Go to video ${index + 1}`}
                 className={`h-1.5 rounded-full transition-all ${
                   index === current
-                    ? "w-5 bg-[var(--brand)]"
-                    : "w-1.5 bg-white/50 hover:bg-white/80"
+                    ? "w-5 bg-[var(--brand-light)]"
+                    : "w-1.5 bg-white/80 hover:bg-white"
                 }`}
               />
             ))}

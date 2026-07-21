@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Search, User as UserIcon, ChevronDown } from "lucide-react";
+import { Search, User as UserIcon, ChevronDown, Menu } from "lucide-react";
 import { getCurrentUser, logout } from "@/lib/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 
-export default function Navbar() {
+export default function Navbar({ onMenuClick }) {
   const [user, setUser] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
@@ -59,10 +59,18 @@ export default function Navbar() {
     user?.full_name || user?.name || user?.username || "Account";
 
   return (
-    <header className="sticky top-0 z-20 mb-6 w-9/10 mx-auto flex items-center gap-4">
+    <header className="sticky top-0 z-20 mx-auto mb-6 flex w-full items-center gap-2 sm:w-9/10 sm:gap-4">
+      <button
+        type="button"
+        onClick={onMenuClick}
+        aria-label="Open navigation"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-zinc-700 shadow-sm transition-colors hover:bg-zinc-50 lg:hidden"
+      >
+        <Menu size={21} />
+      </button>
       <form
         onSubmit={handleSearch}
-        className="flex h-12 flex-1 items-center gap-3 rounded-full border border-[var(--border)] bg-white px-4 shadow-sm"
+        className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 shadow-sm sm:h-12 sm:gap-3 sm:px-4"
       >
         <Search size={18} className="shrink-0 text-zinc-400" />
         <input
@@ -93,7 +101,8 @@ export default function Navbar() {
           <button
             type="button"
             onClick={() => setDropdownOpen((prev) => !prev)}
-            className="flex items-center gap-2 rounded-full border border-[var(--border)] bg-white py-1.5 pl-1.5 pr-3 shadow-sm transition-colors hover:bg-zinc-50"
+            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full border border-[var(--border)] bg-white p-1.5 shadow-sm transition-colors hover:bg-zinc-50 lg:w-auto lg:gap-2 lg:overflow-visible lg:py-1.5 lg:pl-1.5 lg:pr-3"
+            aria-label="Open profile menu"
           >
             {user?.profile_image_url ? (
               <Image
@@ -108,10 +117,10 @@ export default function Navbar() {
                 <UserIcon size={16} className="text-zinc-500" />
               </div>
             )}
-            <span className="hidden max-w-[100px] truncate text-sm font-medium text-zinc-800 sm:inline">
+            <span className="hidden max-w-[100px] truncate text-sm font-medium text-zinc-800 lg:inline">
               {user ? displayName : "Guest"}
             </span>
-            <ChevronDown size={14} className="text-zinc-400" />
+            <ChevronDown size={14} className="hidden text-zinc-400 lg:block" />
           </button>
 
           {dropdownOpen && (

@@ -2,6 +2,7 @@
 
 :root {
   --brand: #0365f0;
+  --brand-light: #4d97ff;
   --brand-hover: #0451bc;
   --brand-soft: #f2f1ff;
   --brand-muted: #cecdfe;
@@ -12,9 +13,79 @@
   --border: #e4e4e7;
 }
 
+:root.dark {
+  color-scheme: dark;
+  --brand-soft: #172554;
+  --brand-muted: #1e3a8a;
+  --surface: rgb(15, 15, 15);
+  --surface-card: rgb(20, 20, 20);
+  --text: #f4f4f5;
+  --text-muted: #a1a1aa;
+  --border: #3f3f46;
+}
+
 body {
   background: var(--surface);
   color: var(--text);
+  transition: background-color 200ms ease, color 200ms ease;
+}
+
+/* Dark equivalents for the existing zinc/white utility palette. */
+.dark .bg-white {
+  background-color: rgb(15, 15, 15);
+}
+
+.dark .bg-zinc-50,
+.dark .bg-zinc-100 {
+  background-color: #27272a;
+}
+
+.dark .bg-zinc-200 {
+  background-color: #3f3f46;
+}
+
+.dark .text-zinc-900,
+.dark .text-zinc-800 {
+  color: #f4f4f5;
+}
+
+.dark .text-zinc-700,
+.dark .text-zinc-600 {
+  color: #d4d4d8;
+}
+
+.dark .text-zinc-500,
+.dark .text-zinc-400 {
+  color: #a1a1aa;
+}
+
+.dark .border-white {
+  border-color: #27272a;
+}
+
+.dark .border-zinc-100,
+.dark .border-zinc-200 {
+  border-color: #3f3f46;
+}
+
+.dark .hover\:bg-zinc-50:hover,
+.dark .hover\:bg-zinc-100:hover {
+  background-color: #3f3f46;
+}
+
+.dark input,
+.dark textarea,
+.dark select {
+  color: #f4f4f5;
+}
+
+.dark input::placeholder,
+.dark textarea::placeholder {
+  color: #71717a;
+}
+
+.dark .app-sidebar :is(a, button, h3, p, span, svg) {
+  color: #ffffff;
 }
 
 .video-js {

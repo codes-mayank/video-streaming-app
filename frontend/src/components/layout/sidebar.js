@@ -1,7 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import {
   House,
   Video,
@@ -11,12 +12,28 @@ import {
   List,
   Play,
   Sun,
-  CaretDown,
+  Moon,
 } from "@phosphor-icons/react";
 import { usePathname } from "next/navigation";
+import { X } from "lucide-react";
 import { getCurrentUser, onAuthChanged } from "@/lib/auth";
 import { getSubscriptions } from "@/lib/video";
 import { channelPath } from "@/lib/videoId";
+
+const THEME_CHANGED_EVENT = "theme-changed";
+
+function subscribeToTheme(callback) {
+  window.addEventListener(THEME_CHANGED_EVENT, callback);
+  return () => window.removeEventListener(THEME_CHANGED_EVENT, callback);
+}
+
+function getThemeSnapshot() {
+  return document.documentElement.classList.contains("dark") ? "dark" : "light";
+}
+
+function getServerThemeSnapshot() {
+  return "light";
+}
 
 const menuItems = [
   { icon: House, label: "Home", href: "/" },
@@ -36,7 +53,7 @@ function ChannelAvatar({ name, imageUrl }) {
   return (
     <div className="relative shrink-0">
       {imageUrl ? (
-        <img
+        <Image
           src={imageUrl}
           alt={name}
           className="h-8 w-8 rounded-full object-cover"
@@ -51,9 +68,21 @@ function ChannelAvatar({ name, imageUrl }) {
   );
 }
 
-export default function Sidebar() {
+export default function Sidebar({ open = false, onClose }) {
   const pathname = usePathname();
   const [subscriptions, setSubscriptions] = useState([]);
+  const theme = useSyncExternalStore(
+    subscribeToTheme,
+    getThemeSnapshot,
+    getServerThemeSnapshot
+  );
+
+  function toggleTheme() {
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    document.documentElement.classList.toggle("dark", nextTheme === "dark");
+    localStorage.setItem("theme", nextTheme);
+    window.dispatchEvent(new Event(THEME_CHANGED_EVENT));
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -88,13 +117,27 @@ export default function Sidebar() {
   }, []);
 
   return (
-    <aside className="flex h-full w-[250px] shrink-0 flex-col overflow-hidden border-r border-[var(--border)] bg-white px-4 py-5">
-      <Link href="/" className="mb-8 flex items-center gap-2.5 px-2">
-        <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--brand)] text-white shadow-sm shadow-rose-200">
-          <Play size={18} fill="currentColor" />
-        </span>
-        <span className="text-xl font-bold tracking-tight text-zinc-900">Umtube</span>
-      </Link>
+    <aside
+      className={`app-sidebar fixed inset-y-0 left-0 z-40 flex h-full w-[280px] shrink-0 flex-col overflow-hidden border-r border-[var(--border)] bg-white px-4 py-5 shadow-2xl transition-transform duration-300 ease-out lg:static lg:z-auto lg:w-[250px] lg:translate-x-0 lg:shadow-none ${
+        open ? "translate-x-0" : "-translate-x-full"
+      }`}
+    >
+      <div className="mb-8 flex items-center justify-between">
+        <Link href="/" onClick={onClose} className="flex items-center gap-2.5 px-2">
+          <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--brand)] text-white shadow-sm shadow-rose-200">
+            <Play size={18} fill="currentColor" />
+          </span>
+          <span className="text-xl font-bold tracking-tight text-zinc-900">Umtube</span>
+        </Link>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close navigation"
+          className="flex h-9 w-9 items-center justify-center rounded-full text-zinc-500 transition-colors hover:bg-zinc-100 lg:hidden"
+        >
+          <X size={20} />
+        </button>
+      </div>
 
       <nav className="space-y-1">
         {menuItems.map((item) => {
@@ -104,6 +147,7 @@ export default function Sidebar() {
             <Link
               key={item.label}
               href={item.href}
+              onClick={onClose}
               className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm transition-colors ${
                 active
                   ? "bg-[var(--brand-muted)] font-semibold text-[var(--brand-hover)] "
@@ -131,6 +175,7 @@ export default function Sidebar() {
               <Link
                 key={channel.id ?? channel.username}
                 href={channelPath(channel.id)}
+                onClick={onClose}
                 className="flex items-center gap-3 rounded-xl px-2 py-2 text-sm text-zinc-700 transition-colors hover:bg-zinc-100"
               >
                 <ChannelAvatar
@@ -147,28 +192,21 @@ export default function Sidebar() {
       </div>
 
       <div className="mt-4 space-y-3">
-        {/* <div className="rounded-2xl bg-gradient-to-br from-[var(--brand)] to-rose-700 p-4 text-white shadow-lg shadow-rose-200/60">
-          <p className="text-sm font-semibold">Go Premium</p>
-          <p className="mt-1 text-xs text-white/80">
-            Ad-free watching and exclusive content.
-          </p>
-          <button
-            type="button"
-            className="mt-3 w-full rounded-full bg-white px-3 py-2 text-xs font-semibold text-[var(--brand)] transition-colors hover:bg-rose-50"
-          >
-            Upgrade Now
-          </button>
-        </div> */}
-
         <button
           type="button"
+          onClick={toggleTheme}
+          aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
           className="flex w-full items-center justify-between rounded-xl border border-[var(--border)] bg-zinc-50 px-3 py-2.5 text-sm text-zinc-600"
         >
           <span className="flex items-center gap-2">
-            <Sun size={16} />
-            Light Mode
+            {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
+            {theme === "dark" ? "Light Mode" : "Dark Mode"}
           </span>
-          <CaretDown size={16} className="text-zinc-400" />
+          <span
+            className={`h-2.5 w-2.5 rounded-full ${
+              theme === "dark" ? "bg-blue-400" : "bg-zinc-300"
+            }`}
+          />
         </button>
       </div>
     </aside>

@@ -25,7 +25,7 @@ const CATEGORY_ICONS = {
 
 export default function CategoryFilter({ selected = "All", onSelect }) {
   return (
-    <div className="mb-8 flex flex-wrap items-center gap-2">
+    <div className="mb-8 flex overflow-x-auto scrollbar-hide [&::-webkit-scrollbar]:hidden items-center gap-2">
       {FILTER_CATEGORIES.map((category) => {
         const Icon = CATEGORY_ICONS[category] ?? LayoutGrid;
         const active = selected === category;

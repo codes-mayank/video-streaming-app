@@ -48,7 +48,7 @@ export default function LatestVideoCard({
 
   return (
     <Link href={watchPath(id)}>
-    <article className="group relative overflow-hidden rounded-3xl bg-zinc-900 shadow-xl">
+    <article className="group relative overflow-hidden bg-zinc-900">
       <div className="relative h-[230px] w-full sm:h-[200px] lg:h-[220px]">
         <Image
           src={thumbnail}
@@ -82,30 +82,13 @@ export default function LatestVideoCard({
 
         <PlayCircle size={100} className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-50" />
 
-        <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 lg:p-6">
+        <div className="absolute inset-x-0 bottom-0 p-4 sm:p-5 lg:p-6 transition-all duration-500">
           <h2 className="max-w-2xl text-xl font-bold leading-tight text-white sm:text-2xl lg:text-[1.75rem]">
             {title}
           </h2>
           <p className="mt-1.5 max-w-xl line-clamp-2 text-md text-white/85">
             {description?.trim() || meta}
           </p>
-
-          {/* <div className="mt-3 flex items-center gap-3">
-            <Link
-              href={watchPath(id)}
-              className="inline-flex items-center gap-2 rounded-full bg-white px-4 py-2 text-sm font-semibold text-zinc-900 transition-colors hover:bg-zinc-100"
-            >
-              <Play size={14} fill="currentColor" />
-              Watch Now
-            </Link>
-            <Link
-              href={watchPath(id)}
-              className="flex h-9 w-9 items-center justify-center rounded-full border border-white/40 bg-white/10 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
-              aria-label="Add"
-            >
-              <Plus size={16} />
-            </Link>
-          </div> */}
         </div>
 
         {/* <div className="absolute bottom-3 left-1/2 flex -translate-x-1/2 gap-1.5">

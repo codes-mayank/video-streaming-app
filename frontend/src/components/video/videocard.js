@@ -49,9 +49,9 @@ export default function VideoCard({
         <Image
           src={thumbnail}
           alt={title}
-          width={320}
-          height={180}
-          className="object-cover transition-transform duration-300 group-hover:scale-[1.03]"
+          fill
+          sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 320px"
+          className="h-full w-full object-cover transition-transform duration-300 group-hover:scale-[1.03]"
         />
         {durationLabel && (
           <span className="absolute bottom-2 right-2 rounded-sm bg-black/60 px-1.5 py-0.5 text-[11px] font-semibold text-white">
