@@ -235,7 +235,16 @@ def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_d
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported content type. Only video files are allowed.",
         )
-    if not is_supported_thumbnail_content_type(payload.thumbnail_content_type):
+    has_thumbnail_type = payload.thumbnail_content_type is not None
+    has_thumbnail_size = payload.thumbnail_size_bytes is not None
+    if has_thumbnail_type != has_thumbnail_size:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Thumbnail content type and size must be provided together.",
+        )
+    if payload.thumbnail_content_type and not is_supported_thumbnail_content_type(
+        payload.thumbnail_content_type
+    ):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Unsupported thumbnail type. Allowed: JPEG, PNG, WebP.",
@@ -244,10 +253,18 @@ def initiate_upload(payload: VideoUploadInitRequest, db: Session = Depends(get_d
     raw_key, storage_base_prefix, video_basename = build_video_object_keys(
         payload.user_id, payload.video_name, payload.content_type
     )
-    thumbnail_key = build_thumbnail_object_key(storage_base_prefix, payload.thumbnail_content_type)
+    thumbnail_key = (
+        build_thumbnail_object_key(storage_base_prefix, payload.thumbnail_content_type)
+        if payload.thumbnail_content_type
+        else None
+    )
     upload_url = generate_presigned_upload_url(file_key=raw_key, content_type=payload.content_type)
-    thumbnail_upload_url = generate_presigned_upload_url(
-        file_key=thumbnail_key, content_type=payload.thumbnail_content_type
+    thumbnail_upload_url = (
+        generate_presigned_upload_url(
+            file_key=thumbnail_key, content_type=payload.thumbnail_content_type
+        )
+        if thumbnail_key and payload.thumbnail_content_type
+        else None
     )
 
     video = Video(
@@ -335,7 +352,7 @@ def complete_upload(video_id: int, db: Session = Depends(get_db)):
             status_code=status.HTTP_409_CONFLICT,
             detail="Upload not found in object storage. Ensure client uploaded the file.",
         )
-    if not video.thumbnail_key or not check_object_exists(video.thumbnail_key):
+    if video.thumbnail_key and not check_object_exists(video.thumbnail_key):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="Thumbnail not found in object storage. Ensure client uploaded the thumbnail.",
@@ -356,6 +373,11 @@ def complete_upload(video_id: int, db: Session = Depends(get_db)):
         video.content_type,
         output_base_prefix=video.storage_base_prefix,
         segment_basename=video.video_basename,
+        thumbnail_output_key=(
+            None
+            if video.thumbnail_key
+            else f"{video.storage_base_prefix or f'hls/{video.id}'}/thumbnail.jpg"
+        ),
     )
 
     invalidate_video_caches(video.id)
@@ -524,6 +546,10 @@ def update_transcode_result(video_id: int, payload: TranscodeUpdateRequest, db: 
         video.hls_prefix = payload.hls_prefix
     if payload.duration_seconds is not None:
         video.duration_seconds = payload.duration_seconds
+    if payload.thumbnail_key is not None:
+        video.thumbnail_key = payload.thumbnail_key
+    if payload.thumbnail_content_type is not None:
+        video.thumbnail_content_type = payload.thumbnail_content_type
 
     db.add(video)
     db.commit()

@@ -13,6 +13,8 @@ def notify_video_service(
     hls_master_key: str | None = None,
     hls_prefix: str | None = None,
     duration_seconds: int | None = None,
+    thumbnail_key: str | None = None,
+    thumbnail_content_type: str | None = None,
 ) -> None:
     url = f"{settings.VIDEO_SERVICE_BASE_URL.rstrip('/')}/videos/{video_id}/transcode-result"
     payload = {
@@ -20,6 +22,8 @@ def notify_video_service(
         "hls_master_key": hls_master_key,
         "hls_prefix": hls_prefix,
         "duration_seconds": duration_seconds,
+        "thumbnail_key": thumbnail_key,
+        "thumbnail_content_type": thumbnail_content_type,
     }
     r = requests.post(url, json=payload, timeout=settings.VIDEO_SERVICE_TIMEOUT_SECONDS)
     if not r.ok:
@@ -31,6 +35,7 @@ def process_message(payload: dict) -> None:
     source_key = payload["file_key"]
     output_base_prefix = payload.get("output_base_prefix") or f"hls/{video_id}"
     segment_basename = payload.get("segment_basename") or "video"
+    thumbnail_output_key = payload.get("thumbnail_output_key")
 
     print(
         f"[transcoder] received job video_id={video_id} prefix={output_base_prefix} basename={segment_basename}",
@@ -38,12 +43,13 @@ def process_message(payload: dict) -> None:
     )
     notify_video_service(video_id, "transcoding")
     try:
-        prefix, master_key, duration_seconds = transcode_to_hls(
+        prefix, master_key, duration_seconds, thumbnail_key = transcode_to_hls(
             video_id=video_id,
             source_key=source_key,
             bucket_name=settings.AWS_BUCKET_NAME,
             output_base_prefix=output_base_prefix,
             segment_basename=segment_basename,
+            thumbnail_output_key=thumbnail_output_key,
         )
         notify_video_service(
             video_id,
@@ -51,6 +57,8 @@ def process_message(payload: dict) -> None:
             hls_master_key=master_key,
             hls_prefix=prefix,
             duration_seconds=duration_seconds,
+            thumbnail_key=thumbnail_key,
+            thumbnail_content_type="image/jpeg" if thumbnail_key else None,
         )
         print(f"[transcoder] done video_id={video_id}", flush=True)
     except Exception as exc:

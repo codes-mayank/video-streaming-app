@@ -53,7 +53,7 @@ def _probe_has_audio(path: Path) -> bool:
     return bool((result.stdout or "").strip())
 
 
-def _probe_duration_seconds(path: Path) -> int:
+def _probe_duration(path: Path) -> float:
     cmd = [
         settings.FFPROBE_BINARY,
         "-v",
@@ -74,7 +74,11 @@ def _probe_duration_seconds(path: Path) -> int:
         raise RuntimeError("ffprobe returned an invalid video duration") from exc
     if not math.isfinite(duration) or duration < 0:
         raise RuntimeError("ffprobe returned an invalid video duration")
-    return math.ceil(duration)
+    return duration
+
+
+def _probe_duration_seconds(path: Path) -> int:
+    return math.ceil(_probe_duration(path))
 
 
 def _run(cmd: list[str], *, cwd: str | None = None) -> None:
@@ -145,6 +149,43 @@ def _upload_directory(local_dir: Path, prefix: str, bucket_name: str) -> str:
     return master_key
 
 
+def _generate_and_upload_thumbnail(
+    input_path: Path,
+    output_path: Path,
+    duration: float,
+    bucket_name: str,
+    output_key: str,
+) -> None:
+    seek_seconds = max(0.0, duration / 2)
+    _run(
+        [
+            settings.FFMPEG_BINARY,
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-y",
+            "-ss",
+            f"{seek_seconds:.3f}",
+            "-i",
+            str(input_path),
+            "-frames:v",
+            "1",
+            "-vf",
+            "scale=1280:720:force_original_aspect_ratio=decrease,"
+            "pad=1280:720:(ow-iw)/2:(oh-ih)/2",
+            "-q:v",
+            "2",
+            str(output_path),
+        ]
+    )
+    get_s3_client().upload_file(
+        str(output_path),
+        bucket_name,
+        output_key,
+        ExtraArgs={"ContentType": "image/jpeg"},
+    )
+
+
 def transcode_to_hls(
     video_id: int,
     source_key: str,
@@ -152,7 +193,8 @@ def transcode_to_hls(
     *,
     output_base_prefix: str,
     segment_basename: str,
-) -> tuple[str, str, int]:
+    thumbnail_output_key: str | None = None,
+) -> tuple[str, str, int, str | None]:
     base = output_base_prefix.strip("/")
     seg_name = _safe_segment_basename(segment_basename)
     seg_seconds = max(2, min(30, settings.HLS_SEGMENT_SECONDS))
@@ -170,8 +212,21 @@ def transcode_to_hls(
     client = get_s3_client()
     client.download_file(bucket_name, source_key, str(input_path))
 
-    duration_seconds = _probe_duration_seconds(input_path)
+    duration = _probe_duration(input_path)
+    duration_seconds = math.ceil(duration)
     has_audio = _probe_has_audio(input_path)
+
+    generated_thumbnail_key = None
+    if thumbnail_output_key:
+        thumbnail_path = workdir / "thumbnail.jpg"
+        _generate_and_upload_thumbnail(
+            input_path,
+            thumbnail_path,
+            duration,
+            bucket_name,
+            thumbnail_output_key,
+        )
+        generated_thumbnail_key = thumbnail_output_key
 
     # force_divisible_by=2: libx264 rejects odd dimensions (e.g. 853x480 from 854x480 box).
     filter_complex = (
@@ -280,4 +335,4 @@ def transcode_to_hls(
 
     master_key = _upload_directory(layout, base, bucket_name)
     shutil.rmtree(workdir, ignore_errors=True)
-    return base, master_key, duration_seconds
+    return base, master_key, duration_seconds, generated_thumbnail_key

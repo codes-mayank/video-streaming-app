@@ -23,12 +23,15 @@ def publish_transcode_job(
     *,
     output_base_prefix: str | None = None,
     segment_basename: str | None = None,
+    thumbnail_output_key: str | None = None,
 ) -> None:
     body: dict = {"video_id": video_id, "file_key": file_key, "content_type": content_type}
     if output_base_prefix:
         body["output_base_prefix"] = output_base_prefix
     if segment_basename:
         body["segment_basename"] = segment_basename
+    if thumbnail_output_key:
+        body["thumbnail_output_key"] = thumbnail_output_key
     producer = get_producer()
     try:
         producer.send(settings.KAFKA_VIDEO_TOPIC, body).get(timeout=10)
@@ -44,6 +47,7 @@ def try_publish_transcode_job(
     *,
     output_base_prefix: str | None = None,
     segment_basename: str | None = None,
+    thumbnail_output_key: str | None = None,
 ) -> tuple[bool, str | None]:
     try:
         publish_transcode_job(
@@ -52,6 +56,7 @@ def try_publish_transcode_job(
             content_type,
             output_base_prefix=output_base_prefix,
             segment_basename=segment_basename,
+            thumbnail_output_key=thumbnail_output_key,
         )
         return True, None
     except Exception as exc:

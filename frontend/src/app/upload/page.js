@@ -131,17 +131,17 @@ export default function UploadPage() {
       setError("Only video files are allowed.");
       return;
     }
-    if (!thumbnailFile) {
-      setError("Please choose a thumbnail image.");
-      return;
-    }
-    if (!thumbnailFile.type.startsWith("image/")) {
+    if (thumbnailFile && !thumbnailFile.type.startsWith("image/")) {
       setError("Thumbnail must be an image (JPEG, PNG, or WebP).");
       return;
     }
 
     setUploading(true);
-    setStatus("Uploading video and thumbnail…");
+    setStatus(
+      thumbnailFile
+        ? "Uploading video and thumbnail…"
+        : "Uploading video… A thumbnail will be generated automatically."
+    );
 
     try {
       const result = await uploadVideo({
@@ -307,7 +307,9 @@ export default function UploadPage() {
 
             {/* Thumbnail */}
             <div className="mt-5">
-              <label className="mb-1.5 block text-sm font-medium text-zinc-700">Thumbnail</label>
+              <label className="mb-1.5 block text-sm font-medium text-zinc-700">
+                Thumbnail <span className="font-normal text-zinc-400">(optional)</span>
+              </label>
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-[220px_minmax(0,1fr)]">
                 <button
                   type="button"
@@ -327,6 +329,9 @@ export default function UploadPage() {
                         Upload thumbnail
                       </span>
                       <span className="text-xs text-zinc-400">JPG, PNG or WebP. Max 5MB.</span>
+                      <span className="text-xs text-zinc-400">
+                        If omitted, the middle video frame will be used.
+                      </span>
                     </>
                   )}
                 </button>

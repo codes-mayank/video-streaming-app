@@ -289,7 +289,9 @@ export async function uploadVideo({
 }) {
   const videoName = (file.name.replace(/\.[^/.]+$/, "") || title).slice(0, 200);
   const contentType = guessContentType(file);
-  const thumbnailContentType = guessImageContentType(thumbnailFile);
+  const thumbnailContentType = thumbnailFile
+    ? guessImageContentType(thumbnailFile)
+    : null;
 
   const initRes = await fetch(`${API_BASE}/videos/upload/initiate`, {
     method: "POST",
@@ -302,8 +304,12 @@ export async function uploadVideo({
       user_id: String(userId),
       video_name: videoName,
       uploaded_by: uploadedBy || null,
-      thumbnail_content_type: thumbnailContentType,
-      thumbnail_size_bytes: thumbnailFile.size,
+      ...(thumbnailFile
+        ? {
+            thumbnail_content_type: thumbnailContentType,
+            thumbnail_size_bytes: thumbnailFile.size,
+          }
+        : {}),
       category,
     }),
   });
@@ -325,12 +331,14 @@ export async function uploadVideo({
     proxyPath: `/videos/${videoId}/upload`,
   });
 
-  await uploadFileToStorage({
-    uploadUrl: thumbnailUploadUrl,
-    contentType: thumbnailContentType,
-    file: thumbnailFile,
-    proxyPath: `/videos/${videoId}/thumbnail/upload`,
-  });
+  if (thumbnailFile) {
+    await uploadFileToStorage({
+      uploadUrl: thumbnailUploadUrl,
+      contentType: thumbnailContentType,
+      file: thumbnailFile,
+      proxyPath: `/videos/${videoId}/thumbnail/upload`,
+    });
+  }
 
   const completeRes = await fetch(`${API_BASE}/videos/${videoId}/complete`, {
     method: "POST",

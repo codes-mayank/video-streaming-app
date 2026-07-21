@@ -18,8 +18,8 @@ class VideoUploadInitRequest(BaseModel):
         description="User-facing filename base (no extension); used in object key paths.",
     )
     uploaded_by: str | None = Field(default=None, max_length=255)
-    thumbnail_content_type: str = Field(..., min_length=1, max_length=100)
-    thumbnail_size_bytes: int = Field(..., gt=0)
+    thumbnail_content_type: str | None = Field(default=None, min_length=1, max_length=100)
+    thumbnail_size_bytes: int | None = Field(default=None, gt=0)
     category: str = Field(default=DEFAULT_VIDEO_CATEGORY, max_length=50)
 
     @field_validator("category")
@@ -33,8 +33,8 @@ class VideoUploadInitResponse(BaseModel):
     file_key: str
     storage_base_prefix: str
     upload_url: str
-    thumbnail_key: str
-    thumbnail_upload_url: str
+    thumbnail_key: str | None = None
+    thumbnail_upload_url: str | None = None
     expires_in_seconds: int
 
 
@@ -119,6 +119,8 @@ class TranscodeUpdateRequest(BaseModel):
     hls_master_key: str | None = Field(default=None, max_length=500)
     hls_prefix: str | None = Field(default=None, max_length=500)
     duration_seconds: int | None = Field(default=None, ge=0)
+    thumbnail_key: str | None = Field(default=None, max_length=500)
+    thumbnail_content_type: str | None = Field(default=None, max_length=100)
 
 
 class User(BaseModel):
