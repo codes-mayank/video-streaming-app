@@ -62,3 +62,56 @@ def try_publish_transcode_job(
     except Exception as exc:
         return False, str(exc)
 
+
+def publish_subscription_event(
+    *,
+    event_type: str,
+    user_id: int,
+    channel_id: int,
+) -> None:
+    body = {
+        "event_type": event_type,
+        "user_id": user_id,
+        "channel_id": channel_id,
+    }
+    producer = get_producer()
+    try:
+        producer.send(settings.KAFKA_SUBSCRIPTION_EVENTS_TOPIC, body).get(timeout=10)
+    finally:
+        producer.flush()
+        producer.close()
+
+
+def try_publish_subscription_event(
+    *,
+    event_type: str,
+    user_id: int,
+    channel_id: int,
+) -> tuple[bool, str | None]:
+    try:
+        publish_subscription_event(
+            event_type=event_type,
+            user_id=user_id,
+            channel_id=channel_id,
+        )
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+
+
+def publish_engagement_event(**payload) -> None:
+    producer = get_producer()
+    try:
+        producer.send(settings.KAFKA_ENGAGEMENT_EVENTS_TOPIC, payload).get(timeout=10)
+    finally:
+        producer.flush()
+        producer.close()
+
+
+def try_publish_engagement_event(**payload) -> tuple[bool, str | None]:
+    try:
+        publish_engagement_event(**payload)
+        return True, None
+    except Exception as exc:
+        return False, str(exc)
+

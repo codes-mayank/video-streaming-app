@@ -21,14 +21,26 @@ export default function LikeButton({ videoId, initialCount = 0, initialLiked = f
   const [error, setError] = useState("");
 
   async function handleToggle() {
-    setError("");
+    if (loading) return;
+
+    const previousLiked = liked;
+    const previousCount = likeCount;
+    const nextLiked = !previousLiked;
+
+    setLiked(nextLiked);
+    setLikeCount(nextLiked ? previousCount + 1 : Math.max(0, previousCount - 1));
     setLoading(true);
+    setError("");
 
     try {
-      const result = liked ? await unlikeVideo(videoId) : await likeVideo(videoId);
-      setLikeCount(result.like_count);
-      setLiked(result.liked);
+      if (nextLiked) {
+        await likeVideo(videoId);
+      } else {
+        await unlikeVideo(videoId);
+      }
     } catch (err) {
+      setLiked(previousLiked);
+      setLikeCount(previousCount);
       if (err.message?.includes("Not authenticated") || err.message?.includes("401")) {
         router.push("/login");
         return;

@@ -76,14 +76,33 @@ export default function CommentsSection({ videoId }) {
       return;
     }
 
+    const optimisticId = -Date.now();
+    const optimistic = {
+      id: optimisticId,
+      video_id: Number(videoId),
+      user_id: user.id ?? user.user_id,
+      username: user.username || user.name || "You",
+      body: trimmed,
+      created_at: new Date().toISOString(),
+      is_owner: true,
+      client_id: null,
+    };
+
+    setComments((prev) => [optimistic, ...prev]);
+    setTotal((count) => count + 1);
+    setBody("");
     setSubmitting(true);
     setError("");
+
     try {
       const comment = await createComment(videoId, trimmed);
-      setComments((prev) => [comment, ...prev]);
-      setTotal((count) => count + 1);
-      setBody("");
+      setComments((prev) =>
+        prev.map((item) => (item.id === optimisticId ? { ...comment, is_owner: true } : item))
+      );
     } catch (err) {
+      setComments((prev) => prev.filter((item) => item.id !== optimisticId));
+      setTotal((count) => Math.max(0, count - 1));
+      setBody(trimmed);
       if (err.message?.includes("Not authenticated")) {
         router.push("/login");
         return;
@@ -107,14 +126,21 @@ export default function CommentsSection({ videoId }) {
     }
   }
 
-  async function handleDelete(commentId) {
+  async function handleDelete(comment) {
+    const commentId = comment.id;
     setDeletingId(commentId);
     setError("");
+
+    const previous = comments;
+    const previousTotal = total;
+    setComments((prev) => prev.filter((item) => item.id !== commentId));
+    setTotal((count) => Math.max(0, count - 1));
+
     try {
-      await deleteComment(videoId, commentId);
-      setComments((prev) => prev.filter((comment) => comment.id !== commentId));
-      setTotal((count) => Math.max(0, count - 1));
+      await deleteComment(videoId, commentId, comment.client_id);
     } catch (err) {
+      setComments(previous);
+      setTotal(previousTotal);
       setError(err.message ?? "Failed to delete comment.");
     } finally {
       setDeletingId(null);
@@ -195,7 +221,7 @@ export default function CommentsSection({ videoId }) {
       ) : (
         <ul className="space-y-5">
           {comments.map((comment) => (
-            <li key={comment.id} className="flex gap-3">
+            <li key={comment.client_id || comment.id} className="flex gap-3">
               <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-zinc-200 text-sm font-semibold text-zinc-600">
                 {comment.username?.charAt(0)?.toUpperCase() ?? "?"}
               </div>
@@ -208,7 +234,7 @@ export default function CommentsSection({ videoId }) {
                   {comment.is_owner && (
                     <button
                       type="button"
-                      onClick={() => handleDelete(comment.id)}
+                      onClick={() => handleDelete(comment)}
                       disabled={deletingId === comment.id}
                       aria-label="Delete comment"
                       className="rounded p-1 text-zinc-400 hover:bg-zinc-100 hover:text-[var(--brand)] disabled:opacity-60"

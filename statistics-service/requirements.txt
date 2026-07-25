@@ -1,0 +1,4 @@
+kafka-python
+pydantic-settings
+sqlalchemy
+psycopg2-binary

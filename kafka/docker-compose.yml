@@ -28,15 +28,16 @@ services:
     depends_on:
       kafka:
         condition: service_healthy
-    entrypoint:
-      - /opt/kafka/bin/kafka-topics.sh
-      - --bootstrap-server
-      - kafka:29092
-      - --create
-      - --if-not-exists
-      - --topic
-      - video-transcode-jobs
-      - --partitions
-      - "1"
-      - --replication-factor
-      - "1"
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -e
+        for topic in video-transcode-jobs subscription-events engagement-events; do
+          /opt/kafka/bin/kafka-topics.sh \
+            --bootstrap-server kafka:29092 \
+            --create \
+            --if-not-exists \
+            --topic "$$topic" \
+            --partitions 1 \
+            --replication-factor 1
+        done

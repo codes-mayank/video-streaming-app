@@ -161,11 +161,17 @@ export async function createComment(videoId, body) {
   return res.json();
 }
 
-export async function deleteComment(videoId, commentId) {
-  const res = await fetch(`${API_BASE}/videos/${videoId}/comments/${commentId}`, {
-    ...fetchOptions,
-    method: "DELETE",
-  });
+export async function deleteComment(videoId, commentId, clientId) {
+  const params = new URLSearchParams();
+  if (clientId) params.set("client_id", clientId);
+  const query = params.toString();
+  const res = await fetch(
+    `${API_BASE}/videos/${videoId}/comments/${commentId}${query ? `?${query}` : ""}`,
+    {
+      ...fetchOptions,
+      method: "DELETE",
+    }
+  );
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
   }

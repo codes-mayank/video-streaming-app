@@ -1,4 +1,6 @@
 import mimetypes
+import uuid
+from datetime import datetime, timezone
 from pathlib import PurePosixPath
 
 from fastapi import APIRouter, BackgroundTasks, Depends, File, HTTPException, Query, Request, Response, UploadFile, status
@@ -50,7 +52,11 @@ from app.services.s3 import (
     is_supported_video_content_type,
 )
 from app.services.storage_paths import build_thumbnail_object_key, build_video_object_keys
-from app.services.kafka_queue import try_publish_transcode_job
+from app.services.kafka_queue import (
+    try_publish_engagement_event,
+    try_publish_subscription_event,
+    try_publish_transcode_job,
+)
 
 router = APIRouter()
 
@@ -727,23 +733,36 @@ def like_video(
 ):
     _get_video_or_404(db, video_id)
 
-    existing = (
-        db.query(VideoLike)
-        .filter(VideoLike.video_id == video_id, VideoLike.user_id == current_user.user_id)
-        .first()
-    )
-    if not existing:
-        db.add(VideoLike(user_id=current_user.user_id, video_id=video_id))
-        db.commit()
-
     like_count = (
         db.query(func.count(VideoLike.user_id))
         .filter(VideoLike.video_id == video_id)
         .scalar()
         or 0
     )
+    already_liked = (
+        db.query(VideoLike)
+        .filter(VideoLike.video_id == video_id, VideoLike.user_id == current_user.user_id)
+        .first()
+        is not None
+    )
+
+    published, publish_error = try_publish_engagement_event(
+        event_type="liked",
+        user_id=current_user.user_id,
+        video_id=video_id,
+    )
+    if not published:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Failed to queue like event: {publish_error}",
+        )
+
     invalidate_video_caches(video_id)
-    return LikeStatusResponse(video_id=video_id, like_count=like_count, liked=True)
+    return LikeStatusResponse(
+        video_id=video_id,
+        like_count=like_count if already_liked else like_count + 1,
+        liked=True,
+    )
 
 
 @router.delete("/{video_id}/like", response_model=LikeStatusResponse)
@@ -754,20 +773,36 @@ def unlike_video(
 ):
     _get_video_or_404(db, video_id)
 
-    db.query(VideoLike).filter(
-        VideoLike.video_id == video_id,
-        VideoLike.user_id == current_user.user_id,
-    ).delete()
-    db.commit()
-
     like_count = (
         db.query(func.count(VideoLike.user_id))
         .filter(VideoLike.video_id == video_id)
         .scalar()
         or 0
     )
+    already_liked = (
+        db.query(VideoLike)
+        .filter(VideoLike.video_id == video_id, VideoLike.user_id == current_user.user_id)
+        .first()
+        is not None
+    )
+
+    published, publish_error = try_publish_engagement_event(
+        event_type="unliked",
+        user_id=current_user.user_id,
+        video_id=video_id,
+    )
+    if not published:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Failed to queue unlike event: {publish_error}",
+        )
+
     invalidate_video_caches(video_id)
-    return LikeStatusResponse(video_id=video_id, like_count=like_count, liked=False)
+    return LikeStatusResponse(
+        video_id=video_id,
+        like_count=max(0, like_count - 1) if already_liked else like_count,
+        liked=False,
+    )
 
 
 def _comment_to_response(comment: VideoComment, current_user_id: int | None = None) -> CommentResponse:
@@ -831,41 +866,80 @@ def create_comment(
     current_user=Depends(get_current_user),
 ):
     _get_video_or_404(db, video_id)
+    body = payload.body.strip()
+    client_id = str(uuid.uuid4())
 
-    comment = VideoComment(
+    published, publish_error = try_publish_engagement_event(
+        event_type="comment_created",
+        user_id=current_user.user_id,
+        video_id=video_id,
+        username=current_user.sub,
+        body=body,
+        client_id=client_id,
+    )
+    if not published:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Failed to queue comment event: {publish_error}",
+        )
+
+    invalidate_comments_cache(video_id)
+    # Temporary id for optimistic UI until the batch writer inserts the row.
+    temp_id = uuid.UUID(client_id).int % (10**12)
+    return CommentResponse(
+        id=temp_id,
         video_id=video_id,
         user_id=current_user.user_id,
         username=current_user.sub,
-        body=payload.body.strip(),
+        body=body,
+        created_at=datetime.now(timezone.utc).replace(tzinfo=None),
+        is_owner=True,
+        client_id=client_id,
     )
-    db.add(comment)
-    db.commit()
-    db.refresh(comment)
-    invalidate_comments_cache(video_id)
-    return _comment_to_response(comment, current_user.user_id)
 
 
 @router.delete("/{video_id}/comments/{comment_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_comment(
     video_id: int,
     comment_id: int,
+    request: Request,
     db: Session = Depends(get_db),
     current_user=Depends(get_current_user),
 ):
     _get_video_or_404(db, video_id)
 
+    client_id = request.query_params.get("client_id")
     comment = (
         db.query(VideoComment)
         .filter(VideoComment.id == comment_id, VideoComment.video_id == video_id)
         .first()
     )
-    if not comment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
-    if comment.user_id != current_user.user_id:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not allowed to delete this comment")
 
-    db.delete(comment)
-    db.commit()
+    event: dict = {
+        "event_type": "comment_deleted",
+        "user_id": current_user.user_id,
+        "video_id": video_id,
+    }
+    if comment:
+        if comment.user_id != current_user.user_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Not allowed to delete this comment",
+            )
+        event["comment_id"] = comment.id
+    elif client_id:
+        # Pending comment not flushed yet — cancel by client_id in the batch writer.
+        event["client_id"] = client_id
+    else:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Comment not found")
+
+    published, publish_error = try_publish_engagement_event(**event)
+    if not published:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Failed to queue comment delete event: {publish_error}",
+        )
+
     invalidate_comments_cache(video_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
@@ -998,26 +1072,36 @@ def list_channel_videos(
 
 
 @router.post("/{user_id}/subscribe", response_model=SubscriptionResponse)
-def subscribe_to_channel(user_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def subscribe_to_channel(user_id: int, current_user=Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    existing_subscription = db.query(Subscription).filter(Subscription.user_id == current_user.user_id, Subscription.channel_id == user_id).first()
-    if existing_subscription:
-        return SubscriptionResponse(user_id=current_user.user_id, channel_id=user_id)
-    subscription = Subscription(user_id=current_user.user_id, channel_id=user_id)
-    db.add(subscription)
-    db.commit()
+    published, publish_error = try_publish_subscription_event(
+        event_type="subscribed",
+        user_id=current_user.user_id,
+        channel_id=user_id,
+    )
+    if not published:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Failed to queue subscription event: {publish_error}",
+        )
     return SubscriptionResponse(user_id=current_user.user_id, channel_id=user_id)
 
+
 @router.delete("/{user_id}/unsubscribe", response_model=SubscriptionResponse)
-def unsubscribe_from_channel(user_id: int, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def unsubscribe_from_channel(user_id: int, current_user=Depends(get_current_user)):
     if not current_user:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
-    existing_subscription = db.query(Subscription).filter(Subscription.user_id == current_user.user_id, Subscription.channel_id == user_id).first()
-    if not existing_subscription:
-        return SubscriptionResponse(user_id=current_user.user_id, channel_id=user_id)
-    db.delete(existing_subscription)
-    db.commit()
+    published, publish_error = try_publish_subscription_event(
+        event_type="unsubscribed",
+        user_id=current_user.user_id,
+        channel_id=user_id,
+    )
+    if not published:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail=f"Failed to queue unsubscription event: {publish_error}",
+        )
     return SubscriptionResponse(user_id=current_user.user_id, channel_id=user_id)
 
 # TODO: Update this endpoint to not send public url, use streaming response instead
@@ -1026,17 +1110,22 @@ def get_video(video_id: int, request: Request, db: Session = Depends(get_db), ba
     video = _get_video_or_404(db, video_id)
     current_user = get_current_user_optional(request)
 
-    # Count a view each time the watch page loads this video.
-    db.query(Video).filter(Video.id == video_id).update(
-        {Video.views: Video.views + 1},
-        synchronize_session=False,
+    published, publish_error = try_publish_engagement_event(
+        event_type="video_viewed",
+        video_id=video_id,
+        user_id=current_user.user_id if current_user else None,
     )
-    db.commit()
-    db.refresh(video)
+    if not published:
+        print(
+            f"[video-service] failed to queue view event video_id={video_id}: {publish_error}",
+            flush=True,
+        )
+
     invalidate_video_detail_cache(video_id)
 
     item = _cached_video_response(db, video, current_user.user_id if current_user else None)
-    item.views = video.views
+    # Optimistic display: show count + 1 while the batched writer catches up.
+    item.views = (video.views or 0) + 1
     background_tasks.add_task(add_watch_history, video_id, current_user if current_user else None, db)
     return item
 

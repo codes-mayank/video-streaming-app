@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import { Bell, Loader2 } from "lucide-react";
+import { Loader2 } from "lucide-react";
 import { subscribeToChannel, unsubscribeFromChannel, checkSubscription } from "@/lib/video";
 
 export default function SubscribeButton({ userId, initialSubscribed = false }) {
@@ -21,17 +21,24 @@ export default function SubscribeButton({ userId, initialSubscribed = false }) {
   }, [userId]);
 
   async function handleToggle() {
+    if (loading || !userId) return;
+
+    const previous = subscribed;
+    const next = !previous;
+
+    // Optimistic UI: flip immediately, queue Kafka write in the background.
+    setSubscribed(next);
     setLoading(true);
     setError("");
+
     try {
-      if (subscribed) {
-        await unsubscribeFromChannel(userId);
-        setSubscribed(false);
-      } else {
+      if (next) {
         await subscribeToChannel(userId);
-        setSubscribed(true);
+      } else {
+        await unsubscribeFromChannel(userId);
       }
     } catch (err) {
+      setSubscribed(previous);
       if (err.message?.includes("Not authenticated") || err.message?.includes("401")) {
         router.push("/login");
         return;

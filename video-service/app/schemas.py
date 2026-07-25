@@ -95,6 +95,7 @@ class CommentResponse(CommentCreateRequest):
     username: str
     created_at: datetime
     is_owner: bool | None = None
+    client_id: str | None = None
 
     model_config = {"from_attributes": True}
 

@@ -13,15 +13,19 @@ export default function Navbar({ onMenuClick }) {
   const dropdownRef = useRef(null);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const [searchQuery, setSearchQuery] = useState(searchParams.get("query") ?? "");
+  const urlQuery = searchParams.get("query") ?? "";
+  const [searchQuery, setSearchQuery] = useState(urlQuery);
+  const [prevUrlQuery, setPrevUrlQuery] = useState(urlQuery);
+
+  // Keep the input in sync when the URL query changes (e.g. browser back/forward).
+  if (urlQuery !== prevUrlQuery) {
+    setPrevUrlQuery(urlQuery);
+    setSearchQuery(urlQuery);
+  }
 
   useEffect(() => {
     getCurrentUser().then(setUser).catch(() => setUser(null));
   }, []);
-
-  useEffect(() => {
-    setSearchQuery(searchParams.get("query") ?? "");
-  }, [searchParams]);
 
   useEffect(() => {
     if (!dropdownOpen) return;

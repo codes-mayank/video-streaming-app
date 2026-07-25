@@ -27,6 +27,8 @@ class Settings(BaseSettings):
 
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
     KAFKA_VIDEO_TOPIC: str = "video-transcode-jobs"
+    KAFKA_SUBSCRIPTION_EVENTS_TOPIC: str = "subscription-events"
+    KAFKA_ENGAGEMENT_EVENTS_TOPIC: str = "engagement-events"
 
 
 settings = Settings()
