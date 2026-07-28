@@ -15,7 +15,7 @@ export default function MainLayout({ children }) {
   }, [sidebarOpen]);
 
   return (
-    <div className="flex h-screen overflow-hidden bg-[var(--surface)]">
+    <div className="flex h-screen overflow-hidden bg-[var(--background)]">
       <Sidebar open={sidebarOpen} onClose={() => setSidebarOpen(false)} />
       {sidebarOpen && (
         <button

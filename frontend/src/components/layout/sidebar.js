@@ -63,7 +63,7 @@ function ChannelAvatar({ name, imageUrl }) {
           {initial}
         </div>
       )}
-      <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full border-2 border-white bg-[var(--brand)]" />
+      <span className="absolute bottom-0 right-0 h-2 w-2 rounded-full border-2 border-[var(--surface)] bg-[var(--brand)]" />
     </div>
   );
 }
@@ -118,7 +118,7 @@ export default function Sidebar({ open = false, onClose }) {
 
   return (
     <aside
-      className={`app-sidebar fixed inset-y-0 left-0 z-40 flex h-full w-[280px] shrink-0 flex-col overflow-hidden border-r border-[var(--border)] bg-white px-4 py-5 shadow-2xl transition-transform duration-300 ease-out lg:static lg:z-auto lg:w-[250px] lg:translate-x-0 lg:shadow-none ${
+      className={`app-sidebar fixed inset-y-0 left-0 z-40 flex h-full w-[280px] shrink-0 flex-col overflow-hidden border-r border-[var(--border)] bg-[var(--surface)] px-4 py-5 shadow-2xl transition-transform duration-300 ease-out lg:static lg:z-auto lg:w-[250px] lg:translate-x-0 lg:shadow-none ${
         open ? "translate-x-0" : "-translate-x-full"
       }`}
     >
@@ -196,7 +196,7 @@ export default function Sidebar({ open = false, onClose }) {
           type="button"
           onClick={toggleTheme}
           aria-label={`Switch to ${theme === "dark" ? "light" : "dark"} mode`}
-          className="flex w-full items-center justify-between rounded-xl border border-[var(--border)] bg-zinc-50 px-3 py-2.5 text-sm text-zinc-600"
+          className="flex w-full items-center justify-between rounded-xl border border-[var(--border)] bg-[var(--secondary)] px-3 py-2.5 text-sm text-[var(--text-secondary)]"
         >
           <span className="flex items-center gap-2">
             {theme === "dark" ? <Sun size={16} /> : <Moon size={16} />}
@@ -204,7 +204,7 @@ export default function Sidebar({ open = false, onClose }) {
           </span>
           <span
             className={`h-2.5 w-2.5 rounded-full ${
-              theme === "dark" ? "bg-blue-400" : "bg-zinc-300"
+              theme === "dark" ? "bg-[var(--primary-light)]" : "bg-zinc-300"
             }`}
           />
         </button>

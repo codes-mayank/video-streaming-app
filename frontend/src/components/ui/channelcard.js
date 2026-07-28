@@ -27,7 +27,7 @@ export default function ChannelCard({
       : `Follow ${username} for new videos and channel updates.`;
 
   return (
-    <article className="relative flex h-full w-[220px] shrink-0 flex-col items-center rounded-2xl border border-zinc-100 bg-white p-5 text-center shadow-sm sm:w-[240px]">
+    <article className="relative flex h-full w-[220px] shrink-0 flex-col items-center rounded-2xl border border-[var(--border)] bg-[var(--card)] p-5 text-center shadow-sm sm:w-[240px]">
       <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full bg-[var(--brand-soft)] text-[var(--brand)]">
         {profileImageUrl ? (
           <Image

@@ -1,112 +1,267 @@
 @import "tailwindcss";
 
 :root {
-  --brand: #0365f0;
-  --brand-light: #4d97ff;
-  --brand-hover: #0451bc;
-  --brand-soft: #f2f1ff;
-  --brand-muted: #cecdfe;
-  --surface: #f4f4f5;
-  --surface-card: #ffffff;
-  --text: #18181b;
-  --text-muted: #71717a;
+  --background: #f4f4f5;
+  --surface: #ffffff;
+  --card: #ffffff;
+  --card-hover: #f4f4f5;
+  --modal: #ffffff;
+  --dropdown: #ffffff;
+
   --border: #e4e4e7;
+  --border-light: #d4d4d8;
+  --divider: #e4e4e7;
+
+  --text-primary: #18181b;
+  --text-secondary: #3f3f46;
+  --text-muted: #71717a;
+  --text-disabled: #a1a1aa;
+
+  --primary: #0365f0;
+  --primary-hover: #0451bc;
+  --primary-light: #4d97ff;
+  --primary-bg: #f2f1ff;
+
+  --secondary: #f4f4f5;
+  --secondary-hover: #e4e4e7;
+
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #0ea5e9;
+
+  --icon: #71717a;
+  --icon-hover: #18181b;
+  --icon-active: #0365f0;
+
+  --input-bg: #ffffff;
+  --input-border: #e4e4e7;
+  --input-focus: #0365f0;
+  --input-placeholder: #a1a1aa;
+
+  --player-bg: #000000;
+  --progress: #0365f0;
+  --progress-buffer: #d4d4d8;
+
+  --scrollbar: #d4d4d8;
+  --scrollbar-hover: #a1a1aa;
+
+  --chip-bg: #f4f4f5;
+  --chip-hover: #e4e4e7;
+  --chip-active: #0365f0;
+  --chip-text: #f5f7fa;
+
+  --like-bg: transparent;
+  --like-active-bg: #f2f1ff;
+  --like-active: #0365f0;
+
+  --shadow-sm: rgba(0, 0, 0, 0.05);
+  --shadow-md: rgba(0, 0, 0, 0.1);
+  --shadow-lg: rgba(0, 0, 0, 0.15);
+
+  /* Legacy aliases */
+  --brand: var(--primary);
+  --brand-light: var(--primary-light);
+  --brand-hover: var(--primary-hover);
+  --brand-soft: var(--primary-bg);
+  --brand-muted: #cecdfe;
+  --surface-card: var(--card);
+  --text: var(--text-primary);
 }
 
 :root.dark {
   color-scheme: dark;
-  --brand-soft: #172554;
-  --brand-muted: #1e3a8a;
-  --surface: rgb(15, 15, 15);
-  --surface-card: rgb(20, 20, 20);
-  --text: #f4f4f5;
-  --text-muted: #a1a1aa;
-  --border: #3f3f46;
+
+  --background: #0f1117;
+  --surface: #171b22;
+  --card: #1d2330;
+  --card-hover: #252c3a;
+  --modal: #1a202c;
+  --dropdown: #1d2330;
+
+  --border: #313949;
+  --border-light: #3c4659;
+  --divider: #2a3242;
+
+  --text-primary: #f5f7fa;
+  --text-secondary: #b4becf;
+  --text-muted: #7d8796;
+  --text-disabled: #5e6877;
+
+  --primary: #0365f0;
+  --primary-hover: #0451bc;
+  --primary-light: #4d97ff;
+  --primary-bg: rgba(99, 102, 241, 0.15);
+
+  --secondary: #252c3a;
+  --secondary-hover: #313949;
+
+  --success: #22c55e;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+  --info: #0ea5e9;
+
+  --icon: #b4becf;
+  --icon-hover: #f5f7fa;
+  --icon-active: #0365f0;
+
+  --input-bg: #171b22;
+  --input-border: #313949;
+  --input-focus: #0365f0;
+  --input-placeholder: #7d8796;
+
+  --player-bg: #000000;
+  --progress: #0365f0;
+  --progress-buffer: #404a5c;
+
+  --scrollbar: #313949;
+  --scrollbar-hover: #4a5568;
+
+  --chip-bg: #252c3a;
+  --chip-hover: #313949;
+  --chip-active: #0365f0;
+  --chip-text: #f5f7fa;
+
+  --like-bg: transparent;
+  --like-active-bg: rgba(99, 102, 241, 0.15);
+  --like-active: #0365f0;
+
+  --shadow-sm: rgba(0, 0, 0, 0.15);
+  --shadow-md: rgba(0, 0, 0, 0.25);
+  --shadow-lg: rgba(0, 0, 0, 0.45);
+
+  --brand-muted: #252c3a;
 }
 
 body {
-  background: var(--surface);
-  color: var(--text);
+  background: var(--background);
+  color: var(--text-primary);
   transition: background-color 200ms ease, color 200ms ease;
 }
 
 /* Dark equivalents for the existing zinc/white utility palette. */
+.dark .text-gray-700 {
+  color: #ffffff;
+}
+
 .dark .bg-white {
-  background-color: rgb(15, 15, 15);
+  background-color: var(--card);
 }
 
 .dark .bg-zinc-50,
 .dark .bg-zinc-100 {
-  background-color: #27272a;
+  background-color: var(--secondary);
 }
 
 .dark .bg-zinc-200 {
-  background-color: #3f3f46;
+  background-color: var(--secondary-hover);
 }
 
 .dark .text-zinc-900,
 .dark .text-zinc-800 {
-  color: #f4f4f5;
+  color: var(--text-primary);
 }
 
 .dark .text-zinc-700,
 .dark .text-zinc-600 {
-  color: #d4d4d8;
+  color: var(--text-secondary);
 }
 
 .dark .text-zinc-500,
 .dark .text-zinc-400 {
-  color: #a1a1aa;
+  color: var(--text-muted);
 }
 
 .dark .border-white {
-  border-color: #27272a;
+  border-color: var(--surface);
 }
 
 .dark .border-zinc-100,
 .dark .border-zinc-200 {
-  border-color: #3f3f46;
+  border-color: var(--border);
 }
 
 .dark .hover\:bg-zinc-50:hover,
 .dark .hover\:bg-zinc-100:hover {
-  background-color: #3f3f46;
+  background-color: var(--card-hover);
+}
+
+.dark .hover\:bg-gray-50:hover {
+  background-color: var(--card-hover);
 }
 
 .dark input,
 .dark textarea,
 .dark select {
-  color: #f4f4f5;
+  color: var(--text-primary);
+}
+
+.dark input:not(.bg-transparent),
+.dark textarea:not(.bg-transparent),
+.dark select:not(.bg-transparent) {
+  background-color: var(--input-bg);
+  border-color: var(--input-border);
 }
 
 .dark input::placeholder,
 .dark textarea::placeholder {
-  color: #71717a;
+  color: var(--input-placeholder);
 }
 
-.dark .app-sidebar :is(a, button, h3, p, span, svg) {
-  color: #ffffff;
+.dark input:focus,
+.dark textarea:focus,
+.dark select:focus {
+  border-color: var(--input-focus);
+  outline-color: var(--input-focus);
+}
+
+.dark [role="dialog"] {
+  background-color: var(--modal);
+  border-color: var(--border);
+}
+
+.dark ::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+.dark ::-webkit-scrollbar-track {
+  background: var(--background);
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: var(--scrollbar);
+  border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: var(--scrollbar-hover);
 }
 
 .video-js {
-  border-radius: 1rem;
+  /* border-radius: 1rem; */
   overflow: hidden;
+  background-color: var(--player-bg);
 }
 
 .video-js .vjs-big-play-button {
   border-radius: 9999px;
   border: none;
-  background-color: color-mix(in srgb, var(--brand) 85%, black);
+  background-color: color-mix(in srgb, var(--primary) 85%, black);
 }
 
 .video-js:hover .vjs-big-play-button,
 .video-js .vjs-big-play-button:focus {
-  background-color: var(--brand);
+  background-color: var(--primary);
 }
 
 .video-js .vjs-play-progress,
 .video-js .vjs-volume-level {
-  background-color: var(--brand);
+  background-color: var(--progress);
+}
+
+.video-js .vjs-load-progress {
+  background-color: var(--progress-buffer);
 }
 
 .video-js .vjs-slider:focus,

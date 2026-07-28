@@ -122,7 +122,11 @@ def _liked_video_ids_for_user(db: Session, user_id: int, video_ids: list[int]) -
 
 
 def _get_video_or_404(db: Session, video_id: int) -> Video:
-    video = db.query(Video).filter(Video.id == video_id).first()
+    video = (
+        db.query(Video)
+        .filter(Video.id == video_id, Video.is_deleted.is_(False))
+        .first()
+    )
     if not video:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
     return video
@@ -425,7 +429,10 @@ def search_videos(
 
     videos = (
         db.query(Video)
-        .filter(Video.title.ilike(f"%{normalized_query}%"))
+        .filter(
+            Video.is_deleted.is_(False),
+            Video.title.ilike(f"%{normalized_query}%"),
+        )
         .order_by(Video.created_at.desc())
         .all()
     )
@@ -449,7 +456,12 @@ def get_latest_video(request: Request, db: Session = Depends(get_db)):
         _apply_liked_status(db, [item], current_user.user_id if current_user else None)
         return item
 
-    video = db.query(Video).order_by(Video.created_at.desc()).first()
+    video = (
+        db.query(Video)
+        .filter(Video.is_deleted.is_(False))
+        .order_by(Video.created_at.desc())
+        .first()
+    )
     if not video:
         return None
 
@@ -481,7 +493,7 @@ def get_most_liked_videos(
     )
     videos = (
         db.query(Video)
-        .filter(Video.status == "ready")
+        .filter(Video.status == "ready", Video.is_deleted.is_(False))
         .outerjoin(like_counts, Video.id == like_counts.c.video_id)
         .order_by(func.coalesce(like_counts.c.like_count, 0).desc(), Video.id.desc())
         .limit(limit)
@@ -604,8 +616,11 @@ def list_videos(
         _apply_liked_status(db, response.items, current_user.user_id if current_user else None)
         return response
 
-    query = db.query(Video).order_by(Video.id.desc())
-
+    query = (
+        db.query(Video)
+        .filter(Video.is_deleted.is_(False))
+        .order_by(Video.id.desc())
+    )
     if category:
         try:
             normalized = normalize_category(category)
@@ -678,6 +693,26 @@ def get_raw_video_file(video_id: int, db: Session = Depends(get_db)):
 
     content_bytes, content_type = _fetch_object_bytes(video.file_key)
     return Response(content=content_bytes, media_type=content_type)
+
+@router.delete("/{video_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_video(
+    video_id: int,
+    db: Session = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    video = db.query(Video).filter(Video.id == video_id).first()
+    if not video or video.is_deleted:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Video not found")
+    if str(video.user_id) != str(current_user.user_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You are not the owner of this video",
+        )
+    video.is_deleted = True
+    db.add(video)
+    db.commit()
+    invalidate_video_caches(video_id)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/{video_id}/thumbnail")
@@ -983,10 +1018,18 @@ def get_watch_history(current_user: User = Depends(get_current_user), db: Sessio
     if not video_ids:
         return []
 
-    videos = db.query(Video).filter(Video.id.in_(video_ids)).all()
+    videos = db.query(Video).filter(Video.id.in_(video_ids), Video.is_deleted.is_(False)).all()
     video_by_id = {video.id: video for video in videos}
     ordered_videos = [video_by_id[video_id] for video_id in video_ids if video_id in video_by_id]
     return _enrich_videos_batch(db, ordered_videos, current_user.user_id)
+
+@router.delete("/watch-history/", status_code=status.HTTP_204_NO_CONTENT)
+def delete_watch_history(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+    if not current_user:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Unauthorized")
+    db.query(WatchHistory).filter(WatchHistory.user_id == current_user.user_id).delete()
+    db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 @router.get("/liked-videos", response_model=list[VideoResponse])
 def get_liked_videos(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -1002,7 +1045,7 @@ def get_liked_videos(current_user: User = Depends(get_current_user), db: Session
     if not video_ids:
         return []
 
-    videos = db.query(Video).filter(Video.id.in_(video_ids)).all()
+    videos = db.query(Video).filter(Video.id.in_(video_ids), Video.is_deleted.is_(False)).all()
     video_by_id = {video.id: video for video in videos}
     ordered_videos = [video_by_id[video_id] for video_id in video_ids if video_id in video_by_id]
     return _enrich_videos_batch(db, ordered_videos, current_user.user_id)
@@ -1052,7 +1095,7 @@ def list_channel_videos(
     current_user = get_current_user_optional(request)
     query = (
         db.query(Video)
-        .filter(Video.user_id == str(user_id))
+        .filter(Video.user_id == str(user_id), Video.is_deleted.is_(False))
         .order_by(Video.id.desc())
     )
     if cursor_id:

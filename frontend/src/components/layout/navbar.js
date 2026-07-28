@@ -74,15 +74,15 @@ export default function Navbar({ onMenuClick }) {
       </button>
       <form
         onSubmit={handleSearch}
-        className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-[var(--border)] bg-white px-3 shadow-sm sm:h-12 sm:gap-3 sm:px-4"
+        className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-[var(--input-border)] bg-[var(--input-bg)] px-3 shadow-sm sm:h-12 sm:gap-3 sm:px-4"
       >
-        <Search size={18} className="shrink-0 text-zinc-400" />
+        <Search size={18} className="shrink-0 text-[var(--input-placeholder)]" />
         <input
           type="text"
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
           placeholder="Search videos..."
-          className="w-full bg-transparent text-sm outline-none placeholder:text-zinc-400"
+          className="w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--input-placeholder)]"
         />
         {/* <kbd className="hidden shrink-0 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 sm:inline">
           ⌘ K

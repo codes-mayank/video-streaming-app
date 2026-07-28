@@ -1,16 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
-import {
-  ArrowLeft,
-  BadgeCheck,
-  Bookmark,
-  MoreHorizontal,
-  Scissors,
-  Share2,
-} from "lucide-react";
+import { ArrowLeft, Trash2, Loader2 } from "lucide-react";
 import { SealCheck } from "@phosphor-icons/react";
 import MainLayout from "@/components/layout/mainLayout";
 import VideoPlayer from "@/components/auth/videoplayer";
@@ -18,7 +11,7 @@ import LikeButton from "@/components/video/likebutton";
 import CommentsSection from "@/components/video/commentssection";
 import SubscribeButton from "@/components/video/subscribebutton";
 import WatchSidebar from "@/components/video/watchsidebar";
-import { getVideo, getPlaybackSource } from "@/lib/video";
+import { deleteVideo, getVideo, getPlaybackSource } from "@/lib/video";
 import { decodeVideoId } from "@/lib/videoId";
 import { getCurrentUser } from "@/lib/auth";
 import { getCategoryLabel } from "@/lib/categories";
@@ -48,10 +41,13 @@ function channelInitial(name) {
 
 export default function WatchPage() {
   const { id } = useParams();
+  const router = useRouter();
   const [video, setVideo] = useState(null);
   const [error, setError] = useState(null);
   const [user, setUser] = useState(null);
   const [descExpanded, setDescExpanded] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
     const videoId = decodeVideoId(id);
@@ -81,8 +77,26 @@ export default function WatchPage() {
   const categoryLabel = video ? getCategoryLabel(video.category) : null;
   const description = video?.description?.trim() || "";
   const showMore = description.length > 160;
-  const canSubscribe =
-    video?.user_id && String(user?.id ?? user?.user_id) !== String(video.user_id);
+  const isOwner =
+    video?.user_id != null &&
+    String(user?.id ?? user?.user_id) === String(video.user_id);
+  const canSubscribe = Boolean(video?.user_id) && !isOwner;
+
+  async function handleConfirmDelete() {
+    if (!video || deleting) return;
+
+    setDeleting(true);
+    setError(null);
+    try {
+      await deleteVideo(video.id);
+      setConfirmOpen(false);
+      router.push("/");
+      router.refresh();
+    } catch (err) {
+      setError(err.message ?? "Failed to delete video.");
+      setDeleting(false);
+    }
+  }
 
   return (
     <MainLayout>
@@ -148,34 +162,17 @@ export default function WatchPage() {
                   initialCount={video.like_count ?? 0}
                   initialLiked={Boolean(video.liked)}
                 />
-                {/* <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200"
-                >
-                  <Bookmark size={16} />
-                  Save
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200"
-                >
-                  <Share2 size={16} />
-                  Share
-                </button>
-                <button
-                  type="button"
-                  className="inline-flex items-center gap-2 rounded-full bg-zinc-100 px-4 py-2 text-sm font-medium text-zinc-700 hover:bg-zinc-200"
-                >
-                  <Scissors size={16} />
-                  Clip
-                </button>
-                <button
-                  type="button"
-                  className="flex h-9 w-9 items-center justify-center rounded-full bg-zinc-100 text-zinc-600 hover:bg-zinc-200"
-                  aria-label="More"
-                >
-                  <MoreHorizontal size={16} />
-                </button> */}
+                {isOwner && (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmOpen(true)}
+                    disabled={deleting}
+                    className="inline-flex items-center gap-2 rounded-full bg-red-50 px-4 py-2 text-sm font-medium text-red-600 transition-colors hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    <Trash2 size={16} />
+                    Delete
+                  </button>
+                )}
               </div>
             </div>
 
@@ -223,6 +220,59 @@ export default function WatchPage() {
           </div>
 
           <WatchSidebar excludeVideoId={video.id} />
+        </div>
+      )}
+
+      {confirmOpen && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/45 p-4 backdrop-blur-[1px]"
+          onClick={() => {
+            if (!deleting) setConfirmOpen(false);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-video-title"
+            className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-red-50 text-red-600">
+              <Trash2 size={28} />
+            </div>
+            <h2
+              id="delete-video-title"
+              className="mt-4 text-center text-lg font-semibold text-zinc-900"
+            >
+              Delete this video?
+            </h2>
+            <p className="mt-2 text-center text-sm text-zinc-500">
+              “{video?.title}” will be removed from your channel. This can’t be undone.
+            </p>
+            <div className="mt-6 flex gap-3">
+              <button
+                type="button"
+                onClick={() => setConfirmOpen(false)}
+                disabled={deleting}
+                className="flex-1 rounded-xl border border-zinc-200 px-4 py-2.5 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50 disabled:opacity-60"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDelete}
+                disabled={deleting}
+                className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-red-600 px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-red-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {deleting ? (
+                  <Loader2 size={16} className="animate-spin" />
+                ) : (
+                  <Trash2 size={16} />
+                )}
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </MainLayout>

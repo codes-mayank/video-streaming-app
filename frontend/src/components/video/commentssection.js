@@ -170,7 +170,7 @@ export default function CommentsSection({ videoId }) {
               {(user.username || user.name || "?").charAt(0).toUpperCase()}
             </div>
           )}
-          <div className="relative flex min-w-0 flex-1 items-center gap-2 rounded-full border border-zinc-200 bg-white px-4 py-2 shadow-sm">
+          <div className="relative flex min-w-0 flex-1 items-center gap-2 rounded-full border border-[var(--input-border)] bg-[var(--input-bg)] px-4 py-2 shadow-sm">
             {showEmojiPicker && (
               <div className="absolute z-50 bottom-full right-0 h-md">
                 <EmojiPicker width={300} height={300} previewConfig={{ showPreview: false }} onEmojiClick={(emoji) => setBody(prev => prev + emoji.emoji)} />
@@ -183,9 +183,9 @@ export default function CommentsSection({ videoId }) {
               placeholder="Add a comment..."
               maxLength={2000}
               disabled={submitting}
-              className="min-w-0 flex-1 bg-transparent text-sm outline-none placeholder:text-zinc-400 disabled:opacity-60"
+              className="min-w-0 flex-1 bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--input-placeholder)] disabled:opacity-60"
             />
-            <Smile size={18} onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="shrink-0 text-zinc-400" />
+            <Smile size={18} onClick={() => setShowEmojiPicker(!showEmojiPicker)} className="shrink-0 text-[var(--input-placeholder)]" />
             <button
               type="submit"
               disabled={submitting || !body.trim()}

@@ -62,6 +62,16 @@ export async function getVideos({ category, limit = 12, cursor } = {}) {
   return res.json();
 }
 
+export async function deleteVideo(videoId) {
+  const res = await fetch(`${API_BASE}/videos/${videoId}`, {
+    ...fetchOptions,
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
+}
+
 export async function getVideo(id) {
   const res = await fetch(`${API_BASE}/videos/${id}`, fetchOptions);
 
@@ -78,6 +88,16 @@ export async function getWatchHistory() {
     throw new Error(await parseErrorResponse(res));
   }
   return res.json();
+}
+
+export async function deleteWatchHistory() {
+  const res = await fetch(`${API_BASE}/videos/watch-history/`, {
+    ...fetchOptions,
+    method: "DELETE",
+  });
+  if (!res.ok) {
+    throw new Error(await parseErrorResponse(res));
+  }
 }
 
 export async function getLikedVideos() {
