@@ -115,6 +115,67 @@ ensure_video_columns()
 ensure_video_likes_table()
 ensure_video_comments_table()
 
+
+def ensure_query_indexes() -> None:
+    """Create indexes that match hot list/search/comment/like query patterns."""
+    inspector = inspect(engine)
+    tables = set(inspector.get_table_names())
+    if "videos" not in tables:
+        return
+
+    dialect = engine.dialect.name
+    statements: list[str] = [
+        "CREATE INDEX IF NOT EXISTS idx_videos_is_deleted_id ON videos (is_deleted, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_videos_category_deleted_id ON videos (category, is_deleted, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_videos_user_deleted_id ON videos (user_id, is_deleted, id DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_videos_created_at ON videos (created_at DESC)",
+        "CREATE INDEX IF NOT EXISTS idx_videos_status_deleted ON videos (status, is_deleted)",
+    ]
+
+    if "video_comments" in tables:
+        statements.append(
+            "CREATE INDEX IF NOT EXISTS idx_video_comments_video_id_id "
+            "ON video_comments (video_id, id DESC)"
+        )
+    if "video_likes" in tables:
+        statements.append(
+            "CREATE INDEX IF NOT EXISTS idx_video_likes_video_id ON video_likes (video_id)"
+        )
+        statements.append(
+            "CREATE INDEX IF NOT EXISTS idx_video_likes_user_created "
+            "ON video_likes (user_id, created_at DESC)"
+        )
+    if "watch_history" in tables:
+        statements.append(
+            "CREATE INDEX IF NOT EXISTS idx_watch_history_user_created "
+            "ON watch_history (user_id, created_at DESC)"
+        )
+        statements.append(
+            "CREATE UNIQUE INDEX IF NOT EXISTS uix_watch_history_user_video "
+            "ON watch_history (user_id, video_id)"
+        )
+
+    with engine.begin() as conn:
+        for sql in statements:
+            conn.execute(text(sql))
+
+        # Postgres-only: accelerate ILIKE '%term%' title search.
+        if dialect == "postgresql":
+            try:
+                conn.execute(text("CREATE EXTENSION IF NOT EXISTS pg_trgm"))
+                conn.execute(
+                    text(
+                        "CREATE INDEX IF NOT EXISTS idx_videos_title_trgm "
+                        "ON videos USING gin (title gin_trgm_ops)"
+                    )
+                )
+            except Exception:
+                # Extension may be unavailable; pagination still protects search.
+                pass
+
+
+ensure_query_indexes()
+
 app.include_router(videos_router, prefix='/videos', tags=["Videos"])
 
 

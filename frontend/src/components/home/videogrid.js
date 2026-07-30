@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
 import VideoCard from "../video/videocard";
 import { getVideos, getChannelVideos, getThumbnailUrl } from "@/lib/video";
 
-const PAGE_SIZE = 15; // 3 rows × 5 columns at lg
+const PAGE_SIZE = 15;
+const ROW_ESTIMATE_PX = 300;
 const FALLBACK_THUMBNAIL =
   "https://placehold.co/640x360/e2e8f0/64748b?text=Video";
 
@@ -20,6 +22,23 @@ function toCardProps(video) {
   };
 }
 
+function getColumnCount(width) {
+  if (width >= 1024) return 4; // lg
+  if (width >= 768) return 3; // md
+  if (width >= 640) return 2; // sm
+  return 1;
+}
+
+function findScrollParent(node) {
+  let el = node?.parentElement ?? null;
+  while (el) {
+    const { overflowY } = getComputedStyle(el);
+    if (overflowY === "auto" || overflowY === "scroll") return el;
+    el = el.parentElement;
+  }
+  return null;
+}
+
 export default function VideoGrid({ category, userId }) {
   const [videos, setVideos] = useState([]);
   const [nextCursor, setNextCursor] = useState(null);
@@ -27,8 +46,22 @@ export default function VideoGrid({ category, userId }) {
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
-  const sentinelRef = useRef(null);
+  const [columnCount, setColumnCount] = useState(4);
+  const [scrollElement, setScrollElement] = useState(null);
+
+  const gridRef = useRef(null);
   const loadingMoreRef = useRef(false);
+
+  const rowCount = Math.ceil(videos.length / columnCount) || 0;
+
+  const rowVirtualizer = useVirtualizer({
+    count: rowCount,
+    getScrollElement: () => scrollElement,
+    estimateSize: () => ROW_ESTIMATE_PX,
+    overscan: 2,
+  });
+
+  const virtualRows = rowVirtualizer.getVirtualItems();
 
   const loadVideos = useCallback(
     async (cursor) => {
@@ -70,42 +103,60 @@ export default function VideoGrid({ category, userId }) {
     };
   }, [loadVideos]);
 
+  // Resolve the real scroll container (MainLayout <main>) and track column breakpoints.
   useEffect(() => {
-    const node = sentinelRef.current;
-    if (!node || !hasMore || !nextCursor) return;
+    const node = gridRef.current;
+    if (!node) return;
 
-    let scrollRoot = node.parentElement;
-    while (scrollRoot) {
-      const { overflowY } = getComputedStyle(scrollRoot);
-      if (overflowY === "auto" || overflowY === "scroll") break;
-      scrollRoot = scrollRoot.parentElement;
+    const scrollParent = findScrollParent(node);
+    setScrollElement(scrollParent);
+
+    function updateColumns() {
+      setColumnCount(getColumnCount(node.clientWidth || window.innerWidth));
     }
-    if (!scrollRoot) return;
+    updateColumns();
 
-    function onScroll() {
-      if (loadingMoreRef.current) return;
+    const resizeObserver = new ResizeObserver(updateColumns);
+    resizeObserver.observe(node);
+    return () => resizeObserver.disconnect();
+  }, [loading, videos.length]);
 
-      const distanceFromBottom =
-        scrollRoot.scrollHeight - scrollRoot.scrollTop - scrollRoot.clientHeight;
-      // Only load once the user has scrolled to the very end of the page
-      if (distanceFromBottom > 2) return;
-
-      loadingMoreRef.current = true;
-      setLoadingMore(true);
-      loadVideos(nextCursor)
-        .catch((err) => {
-          console.error("getVideos failed:", err);
-          setError(err.message);
-        })
-        .finally(() => {
-          loadingMoreRef.current = false;
-          setLoadingMore(false);
-        });
+  // Prefetch next page when the virtual window nears the end of loaded rows.
+  useEffect(() => {
+    if (!hasMore || !nextCursor || loadingMoreRef.current || !virtualRows.length) {
+      return;
     }
 
-    scrollRoot.addEventListener("scroll", onScroll, { passive: true });
-    return () => scrollRoot.removeEventListener("scroll", onScroll);
-  }, [hasMore, nextCursor, loadVideos]);
+    const lastItem = virtualRows[virtualRows.length - 1];
+    if (!lastItem) return;
+
+    const nearEnd = lastItem.index >= rowCount - 3;
+    if (!nearEnd) return;
+
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    loadVideos(nextCursor)
+      .catch((err) => {
+        console.error("getVideos failed:", err);
+        setError(err.message);
+      })
+      .finally(() => {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      });
+  }, [virtualRows, rowCount, hasMore, nextCursor, loadVideos]);
+
+  const totalSize = rowVirtualizer.getTotalSize();
+
+  const rows = useMemo(() => {
+    return virtualRows.map((virtualRow) => {
+      const startIndex = virtualRow.index * columnCount;
+      return {
+        virtualRow,
+        items: videos.slice(startIndex, startIndex + columnCount),
+      };
+    });
+  }, [virtualRows, columnCount, videos]);
 
   if (loading) {
     return <p className="text-gray-500">Loading videos...</p>;
@@ -120,13 +171,30 @@ export default function VideoGrid({ category, userId }) {
   }
 
   return (
-    <div>
-      <div className="grid grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-        {videos.map((video) => (
-          <VideoCard key={video.id} {...video} />
+    <div ref={gridRef}>
+      <div
+        className="relative w-full"
+        style={{ height: `${totalSize}px` }}
+      >
+        {rows.map(({ virtualRow, items }) => (
+          <div
+            key={virtualRow.key}
+            data-index={virtualRow.index}
+            ref={rowVirtualizer.measureElement}
+            className="absolute top-0 left-0 grid w-full grid-cols-1 gap-x-5 gap-y-8 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
+            style={{
+              transform: `translateY(${virtualRow.start}px)`,
+              paddingBottom: "2rem",
+            }}
+          >
+            {items.map((video) => (
+              <VideoCard key={video.id} {...video} />
+            ))}
+          </div>
         ))}
       </div>
-      <div ref={sentinelRef} className="mt-6 flex h-8 items-center justify-center">
+
+      <div className="mt-2 flex h-8 items-center justify-center">
         {loadingMore && <p className="text-sm text-zinc-500">Loading more...</p>}
         {!hasMore && videos.length > 0 && (
           <p className="text-sm text-zinc-400">No more videos</p>

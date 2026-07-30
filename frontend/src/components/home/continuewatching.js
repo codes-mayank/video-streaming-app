@@ -34,12 +34,12 @@ export default function ContinueWatching() {
     getCurrentUser()
       .then((user) => {
         if (!user || cancelled) return null;
-        return getWatchHistory();
+        return getWatchHistory({ limit: 4 });
       })
       .then((data) => {
         if (cancelled || !data) return;
         const list = Array.isArray(data) ? data : data.items ?? [];
-        setVideos(list.slice(0, 4).map(toCardProps));
+        setVideos(list.map(toCardProps));
       })
       .catch(() => {});
 

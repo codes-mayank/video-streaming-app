@@ -10,12 +10,14 @@ redis_client = Redis(
 VIDEOS_LIST_CACHE_PREFIX = "videos_list:"
 VIDEO_DETAIL_CACHE_PREFIX = "video:"
 COMMENTS_CACHE_PREFIX = "comments:"
+COMMENTS_COUNT_CACHE_PREFIX = "comments_count:"
 SEARCH_CACHE_PREFIX = "search:"
 LIKES_COUNT_CACHE_PREFIX = "likes_count:"
 LATEST_VIDEO_CACHE_KEY = "latest_video"
 
 SEARCH_CACHE_TTL = 60
 DEFAULT_CACHE_TTL = 300
+COMMENTS_COUNT_CACHE_TTL = 300
 
 
 def get_cache(key: str):
@@ -50,6 +52,7 @@ def invalidate_video_detail_cache(video_id: int):
 
 def invalidate_comments_cache(video_id: int):
     delete_cache_pattern(f"{COMMENTS_CACHE_PREFIX}{video_id}:*")
+    delete_cache(f"{COMMENTS_COUNT_CACHE_PREFIX}{video_id}")
 
 
 def invalidate_video_caches(video_id: int):

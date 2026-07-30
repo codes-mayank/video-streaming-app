@@ -21,8 +21,13 @@ async function parseErrorResponse(res) {
   return "Failed to load videos.";
 }
 
-export async function searchVideos(query) {
-  const params = new URLSearchParams({ query: query.trim() });
+export async function searchVideos(query, { limit = 20, cursor } = {}) {
+  const params = new URLSearchParams({
+    query: query.trim(),
+    limit: String(limit),
+  });
+  if (cursor) params.set("cursor_id", String(cursor));
+
   const res = await fetch(`${API_BASE}/videos/search?${params.toString()}`, fetchOptions);
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
@@ -82,8 +87,14 @@ export async function getVideo(id) {
   return res.json();
 }
 
-export async function getWatchHistory() {
-  const res = await fetch(`${API_BASE}/videos/watch-history`, fetchOptions);
+export async function getWatchHistory({ limit = 20, cursor } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor_id", String(cursor));
+
+  const res = await fetch(
+    `${API_BASE}/videos/watch-history?${params.toString()}`,
+    fetchOptions
+  );
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
   }
@@ -100,8 +111,14 @@ export async function deleteWatchHistory() {
   }
 }
 
-export async function getLikedVideos() {
-  const res = await fetch(`${API_BASE}/videos/liked-videos`, fetchOptions);
+export async function getLikedVideos({ limit = 20, cursor } = {}) {
+  const params = new URLSearchParams({ limit: String(limit) });
+  if (cursor) params.set("cursor_id", String(cursor));
+
+  const res = await fetch(
+    `${API_BASE}/videos/liked-videos?${params.toString()}`,
+    fetchOptions
+  );
   if (!res.ok) {
     throw new Error(await parseErrorResponse(res));
   }

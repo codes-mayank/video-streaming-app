@@ -55,6 +55,10 @@ class WatchHistory(Base):
     video_id = Column(Integer, ForeignKey("videos.id", ondelete="CASCADE"), nullable=False, index=True)
     created_at = Column(DateTime, server_default=func.now(), nullable=False)
 
+    __table_args__ = (
+        UniqueConstraint("user_id", "video_id", name="uix_watch_history_user_video"),
+    )
+
 
 class Subscription(Base):
     __tablename__ = "subscriptions"

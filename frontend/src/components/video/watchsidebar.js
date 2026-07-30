@@ -33,7 +33,7 @@ export default function WatchSidebar({ excludeVideoId }) {
     getCurrentUser()
       .then((user) => {
         if (!user || cancelled) return null;
-        return getWatchHistory();
+        return getWatchHistory({ limit: 8 });
       })
       .then((data) => {
         if (cancelled || !data) return;

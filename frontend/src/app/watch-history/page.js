@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import MainLayout from "@/components/layout/mainLayout";
 import VideoCard from "@/components/video/videocard";
@@ -8,6 +8,7 @@ import AuthGate from "@/components/auth/authgate";
 import { ClockCounterClockwise } from "@phosphor-icons/react";
 import { deleteWatchHistory, getWatchHistory, getThumbnailUrl } from "@/lib/video";
 
+const PAGE_SIZE = 20;
 const FALLBACK_THUMBNAIL =
   "https://placehold.co/640x360/e2e8f0/64748b?text=Video";
 
@@ -25,25 +26,44 @@ function toCardProps(video) {
 
 function WatchHistoryContent() {
   const [watchHistory, setWatchHistory] = useState([]);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [clearing, setClearing] = useState(false);
 
-  useEffect(() => {
-    getWatchHistory()
-      .then((videos) => {
-        const list = Array.isArray(videos) ? videos : (videos.items ?? []);
-        setWatchHistory(list.map(toCardProps));
-      })
-      .catch((err) => {
-        console.error(err);
-      });
+  const loadHistory = useCallback(async (cursor) => {
+    const data = await getWatchHistory({ limit: PAGE_SIZE, cursor });
+    const list = Array.isArray(data) ? data : (data.items ?? []);
+    const mapped = list.map(toCardProps);
+    setWatchHistory((prev) => (cursor ? [...prev, ...mapped] : mapped));
+    setNextCursor(data.next_cursor ?? null);
+    setHasMore(Boolean(data.has_more));
   }, []);
+
+  useEffect(() => {
+    loadHistory().catch((err) => console.error(err));
+  }, [loadHistory]);
+
+  async function handleLoadMore() {
+    if (!nextCursor || loadingMore) return;
+    setLoadingMore(true);
+    try {
+      await loadHistory(nextCursor);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoadingMore(false);
+    }
+  }
 
   async function handleClearHistory() {
     setClearing(true);
     try {
       await deleteWatchHistory();
       setWatchHistory([]);
+      setNextCursor(null);
+      setHasMore(false);
       setConfirmOpen(false);
     } catch (err) {
       console.error(err);
@@ -63,7 +83,7 @@ function WatchHistoryContent() {
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}
-            className="cursor-pointer inline-flex items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
+            className="inline-flex cursor-pointer items-center gap-2 rounded-xl border border-zinc-200 px-3 py-2 text-sm font-medium text-zinc-700 transition-colors hover:bg-zinc-50"
           >
             <Trash2 size={16} />
             Clear all
@@ -74,11 +94,30 @@ function WatchHistoryContent() {
       {watchHistory.length === 0 ? (
         <p className="text-sm text-zinc-500">No videos in your watch history yet.</p>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
-          {watchHistory.map((video) => (
-            <VideoCard key={video.id} {...video} />
-          ))}
-        </div>
+        <>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+            {watchHistory.map((video) => (
+              <VideoCard key={video.id} {...video} />
+            ))}
+          </div>
+          {hasMore && (
+            <button
+              type="button"
+              onClick={handleLoadMore}
+              disabled={loadingMore}
+              className="mt-6 w-full rounded-xl border border-zinc-200 bg-white py-2.5 text-sm font-medium text-zinc-700 hover:bg-zinc-50 disabled:opacity-60"
+            >
+              {loadingMore ? (
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 size={16} className="animate-spin" />
+                  Loading...
+                </span>
+              ) : (
+                "Load more"
+              )}
+            </button>
+          )}
+        </>
       )}
 
       {confirmOpen && (
