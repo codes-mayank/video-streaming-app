@@ -1,16 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
-import { ChevronRight, Settings } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import MainLayout from "@/components/layout/mainLayout";
 import ChannelCard from "@/components/ui/channelcard";
-import VideoCard from "@/components/video/videocard";
+import VideoGrid from "@/components/home/videogrid";
 import AuthGate from "@/components/auth/authgate";
-import { getSubscriptions, getVideos, getThumbnailUrl } from "@/lib/video";
-
-const FALLBACK_THUMBNAIL =
-  "https://placehold.co/640x360/e2e8f0/64748b?text=Video";
+import { getSubscriptions, getVideos, toVideoCardProps } from "@/lib/video";
 
 function toChannelProps(channel, index) {
   return {
@@ -46,16 +42,9 @@ function formatRelativeTime(dateString) {
 }
 
 function toVideoProps(video) {
-  return {
-    id: video.id,
-    title: video.title,
-    thumbnail: getThumbnailUrl(video.thumbnail_url) ?? FALLBACK_THUMBNAIL,
-    creator: video.uploaded_by ?? "Unknown",
-    views: video.views ?? 0,
-    duration: video.duration_seconds,
-    likeCount: video.like_count ?? 0,
+  return toVideoCardProps(video, {
     createdAtLabel: formatRelativeTime(video.created_at),
-  };
+  });
 }
 
 function HorizontalScroller({ children, empty }) {
@@ -201,16 +190,7 @@ function SubscriptionsContent() {
             No recent videos from your subscriptions.
           </p>
         ) : (
-          <HorizontalScroller>
-            {recentVideos.map((video) => (
-              <div
-                key={video.id}
-                className="w-[calc((100%-4rem)/5)] min-w-[275px] shrink-0"
-              >
-                <VideoCard {...video} />
-              </div>
-            ))}
-          </HorizontalScroller>
+          <VideoGrid videos={recentVideos} />
         )}
       </section>
     </MainLayout>

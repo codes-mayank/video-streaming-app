@@ -1,17 +1,19 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, User } from "lucide-react";
-import { SealCheck, Video} from "@phosphor-icons/react";
+import { SealCheck, Video } from "@phosphor-icons/react";
 
 import MainLayout from "@/components/layout/mainLayout";
 import VideoGrid from "@/components/home/videogrid";
 import SubscribeButton from "@/components/video/subscribebutton";
-import { getChannel } from "@/lib/video";
+import { getChannel, getChannelVideos, toVideoCardProps } from "@/lib/video";
 import { decodeChannelId } from "@/lib/videoId";
 import { getCurrentUser } from "@/lib/auth";
+
+const PAGE_SIZE = 15;
 
 export default function ChannelPage() {
   const { id } = useParams();
@@ -19,6 +21,13 @@ export default function ChannelPage() {
   const [user, setUser] = useState(null);
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [videos, setVideos] = useState([]);
+  const [nextCursor, setNextCursor] = useState(null);
+  const [hasMore, setHasMore] = useState(false);
+  const [videosLoading, setVideosLoading] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [videosError, setVideosError] = useState(null);
+  const loadingMoreRef = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -56,6 +65,58 @@ export default function ChannelPage() {
       cancelled = true;
     };
   }, [id]);
+
+  const loadVideos = useCallback(
+    async (cursor) => {
+      if (!channel?.id) return;
+      const data = await getChannelVideos(channel.id, {
+        limit: PAGE_SIZE,
+        cursor,
+      });
+      const items = (data.items ?? []).map((video) => toVideoCardProps(video));
+      setVideos((prev) => (cursor ? [...prev, ...items] : items));
+      setNextCursor(data.next_cursor ?? null);
+      setHasMore(Boolean(data.has_more));
+    },
+    [channel?.id]
+  );
+
+  useEffect(() => {
+    if (!channel?.id) return;
+    let cancelled = false;
+
+    async function initVideos() {
+      setVideosLoading(true);
+      setVideosError(null);
+      setVideos([]);
+      setNextCursor(null);
+      setHasMore(false);
+      try {
+        await loadVideos();
+      } catch (err) {
+        if (!cancelled) setVideosError(err.message || "Failed to load videos.");
+      } finally {
+        if (!cancelled) setVideosLoading(false);
+      }
+    }
+
+    initVideos();
+    return () => {
+      cancelled = true;
+    };
+  }, [channel?.id, loadVideos]);
+
+  const handleNearEnd = useCallback(() => {
+    if (!hasMore || !nextCursor || loadingMoreRef.current) return;
+    loadingMoreRef.current = true;
+    setLoadingMore(true);
+    loadVideos(nextCursor)
+      .catch((err) => setVideosError(err.message))
+      .finally(() => {
+        loadingMoreRef.current = false;
+        setLoadingMore(false);
+      });
+  }, [hasMore, nextCursor, loadVideos]);
 
   const displayName = channel?.full_name || channel?.username || "Channel";
   const canSubscribe =
@@ -95,7 +156,9 @@ export default function ChannelPage() {
                   <SealCheck size={20} weight="fill" className="shrink-0 text-sky-500" />
                 </h1>
                 {channel.full_name && channel.full_name !== channel.username && (
-                  <p className="mt-0.5 truncate text-sm text-zinc-500">{channel.full_name}</p>
+                  <p className="mt-0.5 truncate text-sm text-zinc-500">
+                    {channel.full_name}
+                  </p>
                 )}
                 <p className="mt-1 text-sm text-zinc-400">Channel videos</p>
               </div>
@@ -103,8 +166,24 @@ export default function ChannelPage() {
             {canSubscribe && <SubscribeButton userId={channel.id} />}
           </div>
 
-          <h2 className="mb-5 flex items-center gap-2 text-lg font-bold text-zinc-900"><Video size={27} className="text-[var(--brand)]" weight="fill" /> Videos</h2>
-          <VideoGrid userId={channel.id} />
+          <h2 className="mb-5 flex items-center gap-2 text-lg font-bold text-zinc-900">
+            <Video size={27} className="text-[var(--brand)]" weight="fill" /> Videos
+          </h2>
+
+          {videosLoading && <p className="text-sm text-zinc-500">Loading videos...</p>}
+          {videosError && !videos.length && (
+            <p className="text-sm text-[var(--brand)]">{videosError}</p>
+          )}
+          {!videosLoading && !videosError && !videos.length && (
+            <p className="text-sm text-zinc-500">No videos yet.</p>
+          )}
+
+          <VideoGrid
+            videos={videos}
+            hasMore={hasMore}
+            loadingMore={loadingMore}
+            onNearEnd={handleNearEnd}
+          />
         </>
       )}
     </MainLayout>

@@ -321,6 +321,22 @@ export function getThumbnailUrl(thumbnailUrl) {
   return `${API_BASE}${thumbnailUrl}`;
 }
 
+const FALLBACK_THUMBNAIL =
+  "https://placehold.co/640x360/e2e8f0/64748b?text=Video";
+
+export function toVideoCardProps(video, extras = {}) {
+  return {
+    id: video.id,
+    title: video.title,
+    thumbnail: getThumbnailUrl(video.thumbnail_url) ?? FALLBACK_THUMBNAIL,
+    creator: video.uploaded_by ?? "Unknown",
+    views: video.views ?? 0,
+    duration: video.duration_seconds,
+    likeCount: video.like_count ?? 0,
+    ...extras,
+  };
+}
+
 export async function uploadVideo({
   title,
   description,

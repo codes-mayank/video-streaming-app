@@ -482,7 +482,7 @@ def search_videos(
         db.query(Video)
         .filter(
             Video.is_deleted.is_(False),
-            Video.title.ilike(f"%{normalized_query}%"),
+            Video.title.ilike(f"{normalized_query}%"),
         )
         .order_by(Video.id.desc())
     )
