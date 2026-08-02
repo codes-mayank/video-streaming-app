@@ -1,14 +1,18 @@
 services:
   api-gateway:
-    image: nginx:latest
+    build: .
+    image: umtube-api-gateway:latest
     container_name: api-gateway
     ports:
       - "8090:80"
-    volumes:
-      - ./nginx.conf:/etc/nginx/nginx.conf:ro
-
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    depends_on:
+      - redis
+    # Local hybrid mode (apps on host): uncomment to override with host.docker.internal routes
+    # volumes:
+    #   - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
+    restart: unless-stopped
 
   redis:
     image: redis:7-alpine
@@ -18,5 +22,6 @@ services:
       - "6379:6379"
     volumes:
       - redis_data:/data
+
 volumes:
   redis_data:

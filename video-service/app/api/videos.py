@@ -9,20 +9,24 @@ from sqlalchemy.orm import Session
 from sqlalchemy.dialects.postgresql import insert
 
 from app.services.redis import (
-    COMMENTS_CACHE_PREFIX,
-    COMMENTS_COUNT_CACHE_PREFIX,
-    COMMENTS_COUNT_CACHE_TTL,
     LATEST_VIDEO_CACHE_KEY,
-    LIKES_COUNT_CACHE_PREFIX,
-    SEARCH_CACHE_PREFIX,
     SEARCH_CACHE_TTL,
     VIDEO_DETAIL_CACHE_PREFIX,
-    VIDEOS_LIST_CACHE_PREFIX,
+    adjust_likes_count,
+    comments_cache_key,
     get_cache,
+    get_comments_count,
+    get_likes_count,
     invalidate_comments_cache,
+    invalidate_engagement_caches,
     invalidate_video_caches,
     invalidate_video_detail_cache,
+    list_cache_key,
+    most_liked_cache_key,
+    search_cache_key,
     set_cache,
+    set_comments_count,
+    set_likes_count,
 )
 
 from app.core.config import settings
@@ -124,17 +128,16 @@ def _liked_video_ids_for_user(db: Session, user_id: int, video_ids: list[int]) -
 
 
 def _get_like_count(db: Session, video_id: int) -> int:
-    cache_key = f"{LIKES_COUNT_CACHE_PREFIX}{video_id}"
-    cached_count = get_cache(cache_key)
+    cached_count = get_likes_count(video_id)
     if cached_count is not None:
-        return int(cached_count)
+        return cached_count
     like_count = (
         db.query(func.count(VideoLike.user_id))
         .filter(VideoLike.video_id == video_id)
         .scalar()
         or 0
     )
-    set_cache(cache_key, like_count)
+    set_likes_count(video_id, like_count)
     return like_count
 
 
@@ -150,17 +153,16 @@ def _user_has_liked(db: Session, video_id: int, user_id: int) -> bool:
 
 
 def _get_comment_count(db: Session, video_id: int) -> int:
-    cache_key = f"{COMMENTS_COUNT_CACHE_PREFIX}{video_id}"
-    cached_count = get_cache(cache_key)
+    cached_count = get_comments_count(video_id)
     if cached_count is not None:
-        return int(cached_count)
+        return cached_count
     total = (
         db.query(func.count(VideoComment.id))
         .filter(VideoComment.video_id == video_id)
         .scalar()
         or 0
     )
-    set_cache(cache_key, total, ttl=COMMENTS_COUNT_CACHE_TTL)
+    set_comments_count(video_id, total)
     return total
 
 
@@ -470,7 +472,7 @@ def search_videos(
 ):
     current_user = get_current_user_optional(request)
     normalized_query = query.strip().lower()
-    cache_key = f"{SEARCH_CACHE_PREFIX}{normalized_query}:{limit}:{cursor_id}"
+    cache_key = search_cache_key(normalized_query, limit, cursor_id)
 
     cached_data = get_cache(cache_key)
     if cached_data:
@@ -534,7 +536,7 @@ def get_most_liked_videos(
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user_optional(request)
-    cache_key = f"{VIDEOS_LIST_CACHE_PREFIX}most_liked:{limit}"
+    cache_key = most_liked_cache_key(limit)
 
     cached_data = get_cache(cache_key)
     if cached_data:
@@ -660,7 +662,7 @@ def list_videos(
     db: Session = Depends(get_db),
 ):
     current_user = get_current_user_optional(request)
-    cache_key = f"{VIDEOS_LIST_CACHE_PREFIX}{limit}:{cursor_id}:{category}"
+    cache_key = list_cache_key(limit, cursor_id, category)
 
     cached_data = get_cache(cache_key)
     if cached_data:
@@ -807,10 +809,15 @@ def like_video(
             detail=f"Failed to queue like event: {publish_error}",
         )
 
-    invalidate_video_caches(video_id)
+    next_count = like_count if already_liked else like_count + 1
+    if not already_liked:
+        adjusted = adjust_likes_count(video_id, 1)
+        if adjusted is None:
+            set_likes_count(video_id, next_count)
+    invalidate_engagement_caches(video_id)
     return LikeStatusResponse(
         video_id=video_id,
-        like_count=like_count if already_liked else like_count + 1,
+        like_count=next_count,
         liked=True,
     )
 
@@ -837,10 +844,15 @@ def unlike_video(
             detail=f"Failed to queue unlike event: {publish_error}",
         )
 
-    invalidate_video_caches(video_id)
+    next_count = max(0, like_count - 1) if already_liked else like_count
+    if already_liked:
+        adjusted = adjust_likes_count(video_id, -1)
+        if adjusted is None:
+            set_likes_count(video_id, next_count)
+    invalidate_engagement_caches(video_id)
     return LikeStatusResponse(
         video_id=video_id,
-        like_count=max(0, like_count - 1) if already_liked else like_count,
+        like_count=next_count,
         liked=False,
     )
 
@@ -861,7 +873,7 @@ def list_comments(
 ):
     _get_video_or_404(db, video_id)
     current_user = get_current_user_optional(request)
-    cache_key = f"{COMMENTS_CACHE_PREFIX}{video_id}:{limit}:{cursor_id}"
+    cache_key = comments_cache_key(video_id, limit, cursor_id)
 
     cached_data = get_cache(cache_key)
     if cached_data:
@@ -929,7 +941,16 @@ def create_comment(
             detail=f"Failed to queue comment event: {publish_error}",
         )
 
+    prior_count = get_comments_count(video_id)
+    if prior_count is None:
+        prior_count = (
+            db.query(func.count(VideoComment.id))
+            .filter(VideoComment.video_id == video_id)
+            .scalar()
+            or 0
+        )
     invalidate_comments_cache(video_id)
+    set_comments_count(video_id, prior_count + 1)
     # Temporary id for optimistic UI until the batch writer inserts the row.
     temp_id = uuid.UUID(client_id).int % (10**12)
     return CommentResponse(
@@ -986,7 +1007,16 @@ def delete_comment(
             detail=f"Failed to queue comment delete event: {publish_error}",
         )
 
+    prior_count = get_comments_count(video_id)
+    if prior_count is None:
+        prior_count = (
+            db.query(func.count(VideoComment.id))
+            .filter(VideoComment.video_id == video_id)
+            .scalar()
+            or 0
+        )
     invalidate_comments_cache(video_id)
+    set_comments_count(video_id, max(0, prior_count - 1))
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
