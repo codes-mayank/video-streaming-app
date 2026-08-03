@@ -1,3 +1,4 @@
+import sys
 import traceback
 
 import requests
@@ -30,7 +31,8 @@ def notify_video_service(
         print(f"[transcoder] callback failed {r.status_code}: {r.text[:500]}", flush=True)
 
 
-def process_message(payload: dict) -> None:
+def process_message(payload: dict) -> bool:
+    """Transcode one Kafka payload. Returns True on success, False on failure."""
     video_id = int(payload["video_id"])
     source_key = payload["file_key"]
     output_base_prefix = payload.get("output_base_prefix") or f"hls/{video_id}"
@@ -61,19 +63,66 @@ def process_message(payload: dict) -> None:
             thumbnail_content_type="image/jpeg" if thumbnail_key else None,
         )
         print(f"[transcoder] done video_id={video_id}", flush=True)
+        return True
     except Exception as exc:
         notify_video_service(video_id, "transcode_failed")
         print(f"[transcoder] failed video_id={video_id}: {exc}", flush=True)
         traceback.print_exc()
+        return False
 
 
-def main() -> None:
-    print("[transcoder] starting consumer", flush=True)
+def main() -> int:
+    """
+    Batch-and-exit entrypoint for Azure Container Apps Jobs.
+
+    - Processes up to MAX_MESSAGES_PER_RUN messages
+    - Commits offsets only after successful work (unless COMMIT_ON_FAILURE)
+    - Exits 0 when idle or all processed OK; exits 1 if any job failed
+    """
+    max_messages = max(1, settings.MAX_MESSAGES_PER_RUN)
+    print(
+        f"[transcoder] starting job run max_messages={max_messages} "
+        f"consumer_timeout_ms={settings.KAFKA_CONSUMER_TIMEOUT_MS}",
+        flush=True,
+    )
+
     consumer = get_consumer()
-    print("[transcoder] waiting for kafka jobs", flush=True)
-    for msg in consumer:
-        process_message(msg.value)
+    processed = 0
+    failures = 0
+
+    try:
+        for msg in consumer:
+            ok = process_message(msg.value)
+            if ok or settings.COMMIT_ON_FAILURE:
+                consumer.commit()
+                if ok:
+                    print("[transcoder] committed offset", flush=True)
+                else:
+                    print("[transcoder] committed offset after failure (COMMIT_ON_FAILURE)", flush=True)
+                    failures += 1
+            else:
+                failures += 1
+                print(
+                    "[transcoder] left offset uncommitted so the message can be retried",
+                    flush=True,
+                )
+
+            processed += 1
+            if processed >= max_messages:
+                break
+    finally:
+        consumer.close()
+
+    if processed == 0:
+        print("[transcoder] no messages; exiting", flush=True)
+        return 0
+
+    print(
+        f"[transcoder] finished processed={processed} failures={failures}",
+        flush=True,
+    )
+    return 1 if failures else 0
 
 
 if __name__ == "__main__":
-    main()
+    sys.exit(main())

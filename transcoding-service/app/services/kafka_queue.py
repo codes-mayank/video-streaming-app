@@ -10,11 +10,14 @@ def _bootstrap_servers() -> list[str]:
 
 
 def get_consumer() -> KafkaConsumer:
+    """Kafka consumer tuned for Container Apps Jobs: poll, process, commit, exit."""
     return KafkaConsumer(
         settings.KAFKA_VIDEO_TOPIC,
         bootstrap_servers=_bootstrap_servers(),
         group_id=settings.KAFKA_CONSUMER_GROUP,
         auto_offset_reset="earliest",
-        enable_auto_commit=True,
+        enable_auto_commit=False,
+        consumer_timeout_ms=max(1000, settings.KAFKA_CONSUMER_TIMEOUT_MS),
+        max_poll_interval_ms=max(60_000, settings.KAFKA_MAX_POLL_INTERVAL_MS),
         value_deserializer=lambda m: json.loads(m.decode("utf-8")),
     )

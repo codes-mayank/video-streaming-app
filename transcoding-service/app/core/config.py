@@ -17,6 +17,15 @@ class Settings(BaseSettings):
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
     KAFKA_VIDEO_TOPIC: str = "video-transcode-jobs"
     KAFKA_CONSUMER_GROUP: str = "video-transcoder-group"
+    # Idle wait before the consumer iterator ends (Job exits when no work).
+    KAFKA_CONSUMER_TIMEOUT_MS: int = 15000
+    # Must exceed the longest expected transcode so the group does not rebalance mid-job.
+    KAFKA_MAX_POLL_INTERVAL_MS: int = 7_200_000  # 2 hours
+
+    # Azure Container Apps Job: process N messages then exit (1 = one video per execution).
+    MAX_MESSAGES_PER_RUN: int = 1
+    # If true, commit offset after marking transcode_failed (avoids poison-message loops).
+    COMMIT_ON_FAILURE: bool = False
 
     FFMPEG_BINARY: str = "ffmpeg"
     FFPROBE_BINARY: str = "ffprobe"

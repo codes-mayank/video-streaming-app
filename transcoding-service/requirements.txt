@@ -1,4 +1,5 @@
-boto3
-kafka-python
-pydantic-settings
-requests
+# Direct deps pinned for reproducible ACA Job builds (from local .venv freeze).
+boto3==1.43.27
+kafka-python==2.3.2
+pydantic-settings==2.14.1
+requests==2.34.2
