@@ -29,6 +29,11 @@ class Settings(BaseSettings):
     KAFKA_VIDEO_TOPIC: str = "video-transcode-jobs"
     KAFKA_SUBSCRIPTION_EVENTS_TOPIC: str = "subscription-events"
     KAFKA_ENGAGEMENT_EVENTS_TOPIC: str = "engagement-events"
+    # Confluent Cloud: SASL_SSL + PLAIN + API key/secret. Local Docker: PLAINTEXT.
+    KAFKA_SECURITY_PROTOCOL: str = "PLAINTEXT"
+    KAFKA_SASL_MECHANISM: str = "PLAIN"
+    KAFKA_SASL_USERNAME: str = ""
+    KAFKA_SASL_PASSWORD: str = ""
 
 
 settings = Settings()

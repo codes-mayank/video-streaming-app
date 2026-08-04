@@ -90,7 +90,9 @@ def _run_batch_consumer(
     batch_size: int,
     flush_seconds: float,
     poll_timeout_ms: int,
-) -> None:
+    exit_on_idle: bool,
+    max_idle_polls: int,
+) -> int:
     print(f"[statistics] starting {label} batch consumer", flush=True)
     print(
         f"[statistics] {label} config batch_size={batch_size} "
@@ -132,6 +134,8 @@ def _run_batch_consumer(
                 batch_deadline = time.monotonic() + flush_seconds
             raise
 
+    idle_polls = 0
+
     while True:
         try:
             now = time.monotonic()
@@ -145,6 +149,11 @@ def _run_batch_consumer(
                 timeout_ms=timeout_ms,
                 max_records=batch_size,
             )
+            got_messages = any(messages for messages in records.values())
+            if got_messages:
+                idle_polls = 0
+            elif not batch:
+                idle_polls += 1
 
             for _tp, messages in records.items():
                 for msg in messages:
@@ -178,6 +187,13 @@ def _run_batch_consumer(
                         flush=True,
                     )
 
+            if not batch and exit_on_idle and idle_polls >= max(1, max_idle_polls):
+                print(
+                    f"[statistics] {label} idle for {idle_polls} poll(s); exiting",
+                    flush=True,
+                )
+                return 0
+
             if not batch:
                 continue
 
@@ -193,43 +209,71 @@ def _run_batch_consumer(
             time.sleep(1)
 
 
-def main() -> None:
+def _consumer_thread(
+    result_map: Dict[str, int],
+    *,
+    key: str,
+    kwargs: Dict[str, Any],
+) -> None:
+    try:
+        result_map[key] = _run_batch_consumer(**kwargs)
+    except Exception:
+        result_map[key] = 1
+        traceback.print_exc()
+
+
+def main() -> int:
+    thread_results: Dict[str, int] = {}
+    subscription_kwargs = {
+        "label": "subscription-events",
+        "get_consumer": get_subscription_events_consumer,
+        "normalize": _normalize_subscription_event,
+        "apply_events": apply_subscription_events,
+        "batch_size": settings.SUBSCRIPTION_BATCH_SIZE,
+        "flush_seconds": float(settings.SUBSCRIPTION_BATCH_FLUSH_SECONDS),
+        "poll_timeout_ms": int(settings.SUBSCRIPTION_POLL_TIMEOUT_MS),
+        "exit_on_idle": bool(settings.STATS_EXIT_ON_IDLE),
+        "max_idle_polls": int(settings.STATS_MAX_IDLE_POLLS),
+    }
+    engagement_kwargs = {
+        "label": "engagement-events",
+        "get_consumer": get_engagement_events_consumer,
+        "normalize": _normalize_engagement_event,
+        "apply_events": apply_engagement_events,
+        "batch_size": settings.ENGAGEMENT_BATCH_SIZE,
+        "flush_seconds": float(settings.ENGAGEMENT_BATCH_FLUSH_SECONDS),
+        "poll_timeout_ms": int(settings.ENGAGEMENT_POLL_TIMEOUT_MS),
+        "exit_on_idle": bool(settings.STATS_EXIT_ON_IDLE),
+        "max_idle_polls": int(settings.STATS_MAX_IDLE_POLLS),
+    }
     subscription_thread = threading.Thread(
-        target=_run_batch_consumer,
+        target=_consumer_thread,
         kwargs={
-            "label": "subscription-events",
-            "get_consumer": get_subscription_events_consumer,
-            "normalize": _normalize_subscription_event,
-            "apply_events": apply_subscription_events,
-            "batch_size": settings.SUBSCRIPTION_BATCH_SIZE,
-            "flush_seconds": float(settings.SUBSCRIPTION_BATCH_FLUSH_SECONDS),
-            "poll_timeout_ms": int(settings.SUBSCRIPTION_POLL_TIMEOUT_MS),
+            "result_map": thread_results,
+            "key": "subscription-events",
+            "kwargs": subscription_kwargs,
         },
         name="subscription-events-consumer",
         daemon=True,
     )
     engagement_thread = threading.Thread(
-        target=_run_batch_consumer,
+        target=_consumer_thread,
         kwargs={
-            "label": "engagement-events",
-            "get_consumer": get_engagement_events_consumer,
-            "normalize": _normalize_engagement_event,
-            "apply_events": apply_engagement_events,
-            "batch_size": settings.ENGAGEMENT_BATCH_SIZE,
-            "flush_seconds": float(settings.ENGAGEMENT_BATCH_FLUSH_SECONDS),
-            "poll_timeout_ms": int(settings.ENGAGEMENT_POLL_TIMEOUT_MS),
+            "result_map": thread_results,
+            "key": "engagement-events",
+            "kwargs": engagement_kwargs,
         },
         name="engagement-events-consumer",
         daemon=True,
     )
-
     subscription_thread.start()
     engagement_thread.start()
     print("[statistics] both consumers running", flush=True)
-
-    while True:
-        time.sleep(3600)
+    subscription_thread.join()
+    engagement_thread.join()
+    print(f"[statistics] consumers finished: {thread_results}", flush=True)
+    return 1 if any(code != 0 for code in thread_results.values()) else 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

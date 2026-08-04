@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     KAFKA_BOOTSTRAP_SERVERS: str = "localhost:9092"
     KAFKA_VIDEO_TOPIC: str = "video-transcode-jobs"
     KAFKA_CONSUMER_GROUP: str = "video-transcoder-group"
+    # Confluent Cloud: SASL_SSL + PLAIN + API key/secret. Local Docker: PLAINTEXT.
+    KAFKA_SECURITY_PROTOCOL: str = "PLAINTEXT"
+    KAFKA_SASL_MECHANISM: str = "PLAIN"
+    KAFKA_SASL_USERNAME: str = ""
+    KAFKA_SASL_PASSWORD: str = ""
     # Idle wait before the consumer iterator ends (Job exits when no work).
     KAFKA_CONSUMER_TIMEOUT_MS: int = 15000
     # Must exceed the longest expected transcode so the group does not rebalance mid-job.

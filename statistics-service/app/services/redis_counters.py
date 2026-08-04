@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import os
-
 from redis import Redis
 from sqlalchemy import func
 
+from app.core.config import settings
 from app.models import VideoComment, VideoLike
 
 LIKES_COUNT_PREFIX = "likes_count:"
@@ -24,9 +23,9 @@ def get_redis() -> Redis | None:
         return _redis
     try:
         client = Redis(
-            host=os.getenv("REDIS_HOST", "localhost"),
-            port=int(os.getenv("REDIS_PORT", "6379")),
-            db=int(os.getenv("REDIS_DB", "0")),
+            host=settings.REDIS_HOST,
+            port=settings.REDIS_PORT,
+            db=settings.REDIS_DB,
             decode_responses=True,
             socket_connect_timeout=2,
             socket_timeout=2,

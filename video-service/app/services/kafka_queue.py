@@ -9,10 +9,22 @@ def _bootstrap_servers() -> list[str]:
     return [item.strip() for item in settings.KAFKA_BOOTSTRAP_SERVERS.split(",") if item.strip()]
 
 
+def _kafka_security_kwargs() -> dict:
+    """Auth for Confluent Cloud (SASL_SSL + PLAIN). Local Docker stays PLAINTEXT."""
+    protocol = (settings.KAFKA_SECURITY_PROTOCOL or "PLAINTEXT").strip().upper()
+    kwargs: dict = {"security_protocol": protocol}
+    if protocol.startswith("SASL"):
+        kwargs["sasl_mechanism"] = (settings.KAFKA_SASL_MECHANISM or "PLAIN").strip()
+        kwargs["sasl_plain_username"] = settings.KAFKA_SASL_USERNAME
+        kwargs["sasl_plain_password"] = settings.KAFKA_SASL_PASSWORD
+    return kwargs
+
+
 def get_producer() -> KafkaProducer:
     return KafkaProducer(
         bootstrap_servers=_bootstrap_servers(),
         value_serializer=lambda v: json.dumps(v).encode("utf-8"),
+        **_kafka_security_kwargs(),
     )
 
 
@@ -114,4 +126,3 @@ def try_publish_engagement_event(**payload) -> tuple[bool, str | None]:
         return True, None
     except Exception as exc:
         return False, str(exc)
-
