@@ -1,13 +1,41 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Search, User as UserIcon, ChevronDown, Menu } from "lucide-react";
 import { getCurrentUser, logout } from "@/lib/auth";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 
+function NavbarFallback({ onMenuClick }) {
+  return (
+    <header className="sticky top-0 z-20 mx-auto mb-6 flex w-full items-center gap-2 sm:w-9/10 sm:gap-4">
+      <button
+        type="button"
+        onClick={onMenuClick}
+        aria-label="Open navigation"
+        className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-[var(--border)] bg-white text-zinc-700 shadow-sm lg:hidden"
+      >
+        <Menu size={21} />
+      </button>
+      <div className="flex h-11 min-w-0 flex-1 items-center gap-2 rounded-full border border-[var(--input-border)] bg-[var(--input-bg)] px-3 shadow-sm sm:h-12 sm:gap-3 sm:px-4">
+        <Search size={18} className="shrink-0 text-[var(--input-placeholder)]" />
+        <div className="h-4 w-40 animate-pulse rounded bg-zinc-200/70" />
+      </div>
+      <div className="h-11 w-11 shrink-0 rounded-full border border-[var(--border)] bg-white shadow-sm" />
+    </header>
+  );
+}
+
 export default function Navbar({ onMenuClick }) {
+  return (
+    <Suspense fallback={<NavbarFallback onMenuClick={onMenuClick} />}>
+      <NavbarContent onMenuClick={onMenuClick} />
+    </Suspense>
+  );
+}
+
+function NavbarContent({ onMenuClick }) {
   const [user, setUser] = useState(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
