@@ -29,6 +29,21 @@ class Settings(BaseSettings):
     KAFKA_VIDEO_TOPIC: str = "video-transcode-jobs"
     KAFKA_SUBSCRIPTION_EVENTS_TOPIC: str = "subscription-events"
     KAFKA_ENGAGEMENT_EVENTS_TOPIC: str = "engagement-events"
+    # Confluent Cloud: SASL_SSL + PLAIN + API key/secret. Local Docker: PLAINTEXT.
+    KAFKA_SECURITY_PROTOCOL: str = "PLAINTEXT"
+    KAFKA_SASL_MECHANISM: str = "PLAIN"
+    KAFKA_SASL_USERNAME: str = ""
+    KAFKA_SASL_PASSWORD: str = ""
+
+    # Prefer REDIS_URL for Upstash (rediss://...). Host/port used when URL is empty.
+    REDIS_URL: str = ""
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: str = ""
+    REDIS_SSL: bool = False
+    REDIS_CONNECT_TIMEOUT: float = 5.0
+    REDIS_SOCKET_TIMEOUT: float = 5.0
 
 
 settings = Settings()

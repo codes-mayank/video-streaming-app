@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-import os
-
 from redis import Redis
 from sqlalchemy import func
 
+from app.core.config import settings
 from app.models import VideoComment, VideoLike
 
 LIKES_COUNT_PREFIX = "likes_count:"
@@ -18,19 +17,37 @@ COUNTER_TTL = 86400
 _redis: Redis | None = None
 
 
+def create_redis_client() -> Redis:
+    """
+    Prefer REDIS_URL (Upstash: rediss://default:<TOKEN>@<host>:6379).
+    Falls back to REDIS_HOST / PORT / DB / PASSWORD / SSL for local Redis.
+    """
+    common = {
+        "decode_responses": True,
+        "socket_connect_timeout": settings.REDIS_CONNECT_TIMEOUT,
+        "socket_timeout": settings.REDIS_SOCKET_TIMEOUT,
+    }
+    url = (settings.REDIS_URL or "").strip()
+    if url:
+        return Redis.from_url(url, **common)
+
+    password = (settings.REDIS_PASSWORD or "").strip() or None
+    return Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB,
+        password=password,
+        ssl=bool(settings.REDIS_SSL),
+        **common,
+    )
+
+
 def get_redis() -> Redis | None:
     global _redis
     if _redis is not None:
         return _redis
     try:
-        client = Redis(
-            host=os.getenv("REDIS_HOST", "localhost"),
-            port=int(os.getenv("REDIS_PORT", "6379")),
-            db=int(os.getenv("REDIS_DB", "0")),
-            decode_responses=True,
-            socket_connect_timeout=2,
-            socket_timeout=2,
-        )
+        client = create_redis_client()
         client.ping()
         _redis = client
         return _redis

@@ -30,6 +30,16 @@ class Settings(BaseSettings):
     ENGAGEMENT_BATCH_FLUSH_SECONDS: float = 5.0
     ENGAGEMENT_POLL_TIMEOUT_MS: int = 1000
 
+    # Prefer REDIS_URL for Upstash (rediss://...). Host/port used when URL is empty.
+    REDIS_URL: str = ""
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: str = ""
+    REDIS_SSL: bool = False
+    REDIS_CONNECT_TIMEOUT: float = 5.0
+    REDIS_SOCKET_TIMEOUT: float = 5.0
+
 
 settings = Settings()
 
