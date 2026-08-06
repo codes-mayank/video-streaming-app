@@ -35,5 +35,24 @@ class Settings(BaseSettings):
     KAFKA_SASL_USERNAME: str = ""
     KAFKA_SASL_PASSWORD: str = ""
 
+    # Prefer REDIS_URL for Upstash (rediss://...). Host/port used when URL is empty.
+    REDIS_URL: str = ""
+    REDIS_HOST: str = "localhost"
+    REDIS_PORT: int = 6379
+    REDIS_DB: int = 0
+    REDIS_PASSWORD: str = ""
+    REDIS_SSL: bool = False
+    REDIS_CONNECT_TIMEOUT: float = 5.0
+    REDIS_SOCKET_TIMEOUT: float = 5.0
+
+    # Comma-separated browser origins allowed to call the API with credentials.
+    CORS_ORIGINS: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:5173,http://127.0.0.1:5173"
+    )
+
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
 
 settings = Settings()

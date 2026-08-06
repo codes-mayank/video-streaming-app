@@ -1,16 +1,33 @@
 import json
-import os
 
 from redis import Redis
 
-redis_client = Redis(
-    host=os.getenv("REDIS_HOST", "localhost"),
-    port=int(os.getenv("REDIS_PORT", "6379")),
-    db=int(os.getenv("REDIS_DB", "0")),
-    decode_responses=True,
-    socket_connect_timeout=2,
-    socket_timeout=2,
-)
+from app.core.config import settings
+
+
+def create_redis_client() -> Redis:
+    """Prefer REDIS_URL (Upstash rediss://). Fall back to host/port for local Redis."""
+    common = {
+        "decode_responses": True,
+        "socket_connect_timeout": settings.REDIS_CONNECT_TIMEOUT,
+        "socket_timeout": settings.REDIS_SOCKET_TIMEOUT,
+    }
+    url = (settings.REDIS_URL or "").strip()
+    if url:
+        return Redis.from_url(url, **common)
+
+    password = (settings.REDIS_PASSWORD or "").strip() or None
+    return Redis(
+        host=settings.REDIS_HOST,
+        port=settings.REDIS_PORT,
+        db=settings.REDIS_DB,
+        password=password,
+        ssl=bool(settings.REDIS_SSL),
+        **common,
+    )
+
+
+redis_client = create_redis_client()
 
 VIDEOS_LIST_CACHE_PREFIX = "videos_list:"
 VIDEO_DETAIL_CACHE_PREFIX = "video:"

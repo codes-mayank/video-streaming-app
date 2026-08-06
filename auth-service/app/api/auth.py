@@ -24,27 +24,38 @@ router = APIRouter()
 
 
 def _set_auth_cookies(response: Response, access_token: str, refresh_token: str) -> None:
+    samesite = settings.cookie_samesite()
+    secure = bool(settings.COOKIE_SECURE) or samesite == "none"
+    common = {
+        "httponly": True,
+        "secure": secure,
+        "samesite": samesite,
+        "path": "/",
+    }
     response.set_cookie(
         key=settings.ACCESS_TOKEN_COOKIE_NAME,
         value=access_token,
-        httponly=True,
-        samesite="lax",
-        path="/",
         max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        **common,
     )
     response.set_cookie(
         key=settings.REFRESH_TOKEN_COOKIE_NAME,
         value=refresh_token,
-        httponly=True,
-        samesite="lax",
-        path="/",
         max_age=settings.REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
+        **common,
     )
 
 
 def _clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie(settings.ACCESS_TOKEN_COOKIE_NAME, path="/")
-    response.delete_cookie(settings.REFRESH_TOKEN_COOKIE_NAME, path="/")
+    samesite = settings.cookie_samesite()
+    secure = bool(settings.COOKIE_SECURE) or samesite == "none"
+    for key in (settings.ACCESS_TOKEN_COOKIE_NAME, settings.REFRESH_TOKEN_COOKIE_NAME):
+        response.delete_cookie(
+            key,
+            path="/",
+            secure=secure,
+            samesite=samesite,
+        )
 
 
 def _issue_auth_cookies(response: Response, user: User) -> None:

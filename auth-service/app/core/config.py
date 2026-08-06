@@ -33,5 +33,24 @@ class Settings(BaseSettings):
     REFRESH_TOKEN_COOKIE_NAME: str = "refresh_token"
     GOOGLE_CLIENT_ID: Optional[str] = None
 
+    # Comma-separated browser origins allowed to call the API with credentials.
+    # Include your deployed frontend URL (e.g. https://app.example.com).
+    CORS_ORIGINS: str = (
+        "http://localhost:3000,http://127.0.0.1:3000,"
+        "http://localhost:5173,http://127.0.0.1:5173"
+    )
+    # Cross-site frontend↔API (different domains): set COOKIE_SAMESITE=none and COOKIE_SECURE=true.
+    COOKIE_SECURE: bool = False
+    COOKIE_SAMESITE: str = "lax"
+
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
+
+    def cookie_samesite(self) -> str:
+        value = (self.COOKIE_SAMESITE or "lax").strip().lower()
+        if value not in {"lax", "strict", "none"}:
+            return "lax"
+        return value
+
 
 settings = Settings()
