@@ -236,7 +236,7 @@ export default function EditProfilePage() {
                   {username && <Check size={16} className="shrink-0 text-emerald-500" />}
                 </div>
                 <p className="mt-1.5 text-xs text-zinc-400">
-                  This will be your unique identity on Umtube.
+                  This will be your unique identity on WeTube.
                 </p>
               </div>
 
@@ -321,7 +321,7 @@ export default function EditProfilePage() {
               <div>
                 <h2 className="text-sm font-bold text-zinc-900">Account</h2>
                 <p className="mt-0.5 text-xs leading-relaxed text-zinc-500">
-                  Manage your personal info and how it appears to others on Umtube.
+                  Manage your personal info and how it appears to others on WeTube.
                 </p>
               </div>
             </div>

@@ -127,7 +127,7 @@ export default function Sidebar({ open = false, onClose }) {
           <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[var(--brand)] text-white shadow-sm shadow-rose-200">
             <Play size={18} fill="currentColor" />
           </span>
-          <span className="text-xl font-bold tracking-tight text-zinc-900">Umtube</span>
+          <span className="text-xl font-bold tracking-tight text-zinc-900">WeTube</span>
         </Link>
         <button
           type="button"

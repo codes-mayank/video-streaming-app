@@ -1,4 +1,4 @@
-# Umtube — Video Streaming Platform
+# WeTube — Video Streaming Platform
 
 A microservices-based video streaming application inspired by YouTube. Users can sign up, upload videos, and watch adaptive HLS playback with multiple quality levels. The stack uses FastAPI backends, a Next.js frontend, Cloudflare R2 for object storage, and Kafka for async transcoding.
 

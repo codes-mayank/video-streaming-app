@@ -94,7 +94,7 @@ function LoginForm() {
     <GlassCard className="w-full max-w-md">
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-bold">Welcome back</h1>
-        <p className="mt-2 text-sm text-gray-500">Sign in to continue to Umtube</p>
+        <p className="mt-2 text-sm text-gray-500">Sign in to continue to WeTube</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">

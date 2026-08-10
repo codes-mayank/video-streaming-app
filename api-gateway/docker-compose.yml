@@ -1,7 +1,7 @@
 services:
   api-gateway:
     build: .
-    image: umtube-api-gateway:latest
+    image: wetube-api-gateway:latest
     container_name: api-gateway
     ports:
       - "8090:80"

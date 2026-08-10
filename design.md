@@ -1,14 +1,14 @@
-# Umtube — Video Streaming App Design Specification
+# WeTube — Video Streaming App Design Specification
 
-> **Purpose:** This document describes the full product design, user flows, screen inventory, component system, and backend contracts for **Umtube**, a YouTube-style video streaming platform. It is intended for use with **Google Stitch** (and similar design-to-build tools) to generate and align UI with the existing microservices backend.
+> **Purpose:** This document describes the full product design, user flows, screen inventory, component system, and backend contracts for **WeTube**, a YouTube-style video streaming platform. It is intended for use with **Google Stitch** (and similar design-to-build tools) to generate and align UI with the existing microservices backend.
 
 ---
 
 ## 1. Product Overview
 
-### 1.1 What is Umtube?
+### 1.1 What is WeTube?
 
-**Umtube** is a modern video streaming web application where users can:
+**WeTube** is a modern video streaming web application where users can:
 
 - Register, log in (email/password or Google), and manage a profile with avatar
 - Upload videos (MP4, WebM, MOV, MKV, MPEG)
@@ -101,7 +101,7 @@ Stitch should design the **full Next.js experience** described below, wired to t
 
 | Element | Style |
 |---------|-------|
-| App title (sidebar) | `text-2xl font-bold` — "Umtube" |
+| App title (sidebar) | `text-2xl font-bold` — "WeTube" |
 | Page heading | `text-xl font-semibold` |
 | Video title | `text-base font-medium` |
 | Metadata (views, date) | `text-sm text-muted` |
@@ -151,7 +151,7 @@ Every authenticated page uses the same shell.
 ```
 ┌────────────┬──────────────────────────────────────────────────────┐
 │            │  [🔍 Search........................]  [🔔] [Upload]  │  ← sticky navbar
-│  Umtube    ├──────────────────────────────────────────────────────┤
+│  WeTube    ├──────────────────────────────────────────────────────┤
 │            │                                                      │
 │  🏠 Home   │                                                      │
 │  🔥 Trending│              PAGE CONTENT                           │
@@ -168,7 +168,7 @@ Every authenticated page uses the same shell.
 
 ### 4.1 Sidebar (`sidebar.js`)
 
-- **Brand:** "Umtube" logo/title at top
+- **Brand:** "WeTube" logo/title at top
 - **Primary nav (vertical list of buttons):**
   - Home
   - Trending
@@ -703,10 +703,10 @@ Use this sequence when prompting Google Stitch to build screens:
 ## 13. Example Stitch Prompts
 
 ### App Shell
-> Build a YouTube-style app shell for "Umtube" using glassmorphism. Fixed left sidebar (288px) with logo and vertical nav items (Home, Trending, Subscriptions, History, Liked Videos, Watch Later, Settings, Profile). Top sticky navbar with search bar, notification bell, and upload button. Main content scrolls independently. Use frosted glass panels (white 60% opacity, backdrop blur), Geist Sans font, Lucide icons.
+> Build a YouTube-style app shell for "WeTube" using glassmorphism. Fixed left sidebar (288px) with logo and vertical nav items (Home, Trending, Subscriptions, History, Liked Videos, Watch Later, Settings, Profile). Top sticky navbar with search bar, notification bell, and upload button. Main content scrolls independently. Use frosted glass panels (white 60% opacity, backdrop blur), Geist Sans font, Lucide icons.
 
 ### Home Feed
-> Design a video feed page inside the Umtube app shell. Show a responsive grid of glass video cards (4 columns desktop). Each card has a 16:9 thumbnail placeholder with gradient, video title (2-line clamp), creator name, and view count. Include loading skeleton state and empty state with upload CTA.
+> Design a video feed page inside the WeTube app shell. Show a responsive grid of glass video cards (4 columns desktop). Each card has a 16:9 thumbnail placeholder with gradient, video title (2-line clamp), creator name, and view count. Include loading skeleton state and empty state with upload CTA.
 
 ### Watch Page
 > Design a video watch page with a full-width 16:9 HLS video player, title, view count, creator row with avatar and subscribe button, description section, and a right sidebar of related video cards. Show a "Processing video..." overlay state for videos still transcoding.

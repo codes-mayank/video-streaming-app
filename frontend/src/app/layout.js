@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata = {
-  title: "Umtube",
-  description: "Watch and share videos on Umtube",
+  title: "WeTube",
+  description: "Watch and share videos on WeTube",
 };
 
 export default function RootLayout({ children }) {

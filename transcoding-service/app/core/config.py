@@ -22,13 +22,9 @@ class Settings(BaseSettings):
     KAFKA_SASL_MECHANISM: str = "PLAIN"
     KAFKA_SASL_USERNAME: str = ""
     KAFKA_SASL_PASSWORD: str = ""
-    # Idle wait before the consumer iterator ends (Job exits when no work).
-    KAFKA_CONSUMER_TIMEOUT_MS: int = 15000
     # Must exceed the longest expected transcode so the group does not rebalance mid-job.
     KAFKA_MAX_POLL_INTERVAL_MS: int = 7_200_000  # 2 hours
 
-    # Azure Container Apps Job: process N messages then exit (1 = one video per execution).
-    MAX_MESSAGES_PER_RUN: int = 1
     # If true, commit offset after marking transcode_failed (avoids poison-message loops).
     COMMIT_ON_FAILURE: bool = False
 

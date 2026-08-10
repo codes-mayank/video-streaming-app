@@ -106,7 +106,7 @@ function SignupForm() {
     <GlassCard className="w-full max-w-md">
       <div className="mb-8 text-center">
         <h1 className="text-2xl font-bold">Create your account</h1>
-        <p className="mt-2 text-sm text-gray-500">Join Umtube to upload and watch videos</p>
+        <p className="mt-2 text-sm text-gray-500">Join WeTube to upload and watch videos</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-5">
