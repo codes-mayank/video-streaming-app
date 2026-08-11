@@ -50,6 +50,7 @@ export default function VideoCard({
           src={thumbnail}
           alt={title}
           fill
+          unoptimized
           sizes="(max-width: 640px) 100vw, (max-width: 1024px) 50vw, 320px"
           className="h-full w-full object-cover transition-transform duration-300"
         />

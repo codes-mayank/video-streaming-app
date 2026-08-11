@@ -54,6 +54,7 @@ export default function LatestVideoCard({
           src={thumbnail}
           alt={title}
           fill
+          unoptimized
           sizes="100vw"
           className="object-cover transition-transform duration-500 group-hover:scale-[1.02]"
         />
