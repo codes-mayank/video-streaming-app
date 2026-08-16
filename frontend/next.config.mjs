@@ -14,6 +14,30 @@ const nextConfig = {
       { protocol: "https", hostname: "*.azurecontainerapps.io" },
     ],
   },
+
+  async rewrites() {
+    const AUTH_SERVICE = process.env.AUTH_SERVICE;
+    const VIDEO_SERVICE = process.env.VIDEO_SERVICE;
+
+    if (!AUTH_SERVICE || !VIDEO_SERVICE) {
+      throw new Error("AUTH_SERVICE and VIDEO_SERVICE must be set");
+    }
+
+    return [
+      {
+        source: "/api/users/:path*",
+        destination: `${AUTH_SERVICE}/users/:path*`,
+      },
+      {
+        source: "/api/videos",
+        destination: `${VIDEO_SERVICE}/videos`,
+      },
+      {
+        source: "/api/videos/:path*",
+        destination: `${VIDEO_SERVICE}/videos/:path*`,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
