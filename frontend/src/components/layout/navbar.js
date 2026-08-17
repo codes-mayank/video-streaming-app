@@ -3,7 +3,7 @@
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { Search, User as UserIcon, ChevronDown, Menu } from "lucide-react";
-import { getCurrentUser, logout } from "@/lib/auth";
+import { useGetCurrentUserQuery, useLogoutMutation } from "@/lib/redux/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
 
@@ -36,7 +36,8 @@ export default function Navbar({ onMenuClick }) {
 }
 
 function NavbarContent({ onMenuClick }) {
-  const [user, setUser] = useState(null);
+  const { data: user } = useGetCurrentUserQuery();
+  const [logout] = useLogoutMutation();
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const dropdownRef = useRef(null);
   const router = useRouter();
@@ -50,10 +51,6 @@ function NavbarContent({ onMenuClick }) {
     setPrevUrlQuery(urlQuery);
     setSearchQuery(urlQuery);
   }
-
-  useEffect(() => {
-    getCurrentUser().then(setUser).catch(() => setUser(null));
-  }, []);
 
   useEffect(() => {
     if (!dropdownOpen) return;
@@ -77,9 +74,8 @@ function NavbarContent({ onMenuClick }) {
 
   async function handleLogout() {
     setDropdownOpen(false);
-    setUser(null);
     try {
-      await logout();
+      await logout().unwrap();
     } catch {
       // Cookies may already be cleared server-side; ignore network errors.
     }

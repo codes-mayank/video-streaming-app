@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import Link from "next/link";
 import VideoCard from "@/components/video/videocard";
-import { getCurrentUser } from "@/lib/auth";
+import { useGetCurrentUserQuery } from "@/lib/redux/api";
 import { getWatchHistory, getThumbnailUrl } from "@/lib/video";
 
 const FALLBACK_THUMBNAIL =
@@ -24,17 +24,19 @@ function toCardProps(video) {
 }
 
 export default function WatchSidebar({ excludeVideoId }) {
+  const { data: user } = useGetCurrentUserQuery();
   const [videos, setVideos] = useState([]);
   const [autoplay, setAutoplay] = useState(true);
 
   useEffect(() => {
     let cancelled = false;
 
-    getCurrentUser()
-      .then((user) => {
-        if (!user || cancelled) return null;
-        return getWatchHistory({ limit: 8 });
-      })
+    if (!user) {
+      setVideos([]);
+      return undefined;
+    }
+
+    getWatchHistory({ limit: 8 })
       .then((data) => {
         if (cancelled || !data) return;
         const list = Array.isArray(data) ? data : data.items ?? [];
@@ -50,7 +52,7 @@ export default function WatchSidebar({ excludeVideoId }) {
     return () => {
       cancelled = true;
     };
-  }, [excludeVideoId]);
+  }, [excludeVideoId, user]);
 
   return (
     <aside className="space-y-8 overflow-y-auto max-h-[calc(100vh-7rem)] [&::-webkit-scrollbar]:hidden">

@@ -6,7 +6,12 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { GoogleOAuthProvider, GoogleLogin } from "@react-oauth/google";
 import { Mail, Lock, Loader2 } from "lucide-react";
 import GlassCard from "@/components/ui/glasscard";
-import { getCurrentUser, login, googleLogin } from "@/lib/auth";
+import {
+  rtkErrorMessage,
+  useGetCurrentUserQuery,
+  useGoogleLoginMutation,
+  useLoginMutation,
+} from "@/lib/redux/api";
 
 const GOOGLE_CLIENT_ID = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID ?? "";
 
@@ -25,26 +30,13 @@ function LoginForm() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [checkingSession, setCheckingSession] = useState(true);
+  const { data: user, isLoading: checkingSession } = useGetCurrentUserQuery();
+  const [login] = useLoginMutation();
+  const [googleLogin] = useGoogleLoginMutation();
 
   useEffect(() => {
-    let cancelled = false;
-
-    getCurrentUser()
-      .then((user) => {
-        if (!cancelled && user) {
-          router.replace(next);
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setCheckingSession(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router, next]);
+    if (user) router.replace(next);
+  }, [user, router, next]);
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -52,10 +44,13 @@ function LoginForm() {
     setLoading(true);
 
     try {
-      await login(usernameOrEmail, password);
+      await login({
+        username_or_email: usernameOrEmail,
+        password,
+      }).unwrap();
       router.push(next);
     } catch (err) {
-      setError(err.message ?? "Something went wrong. Please try again.");
+      setError(rtkErrorMessage(err));
     } finally {
       setLoading(false);
     }
@@ -71,10 +66,10 @@ function LoginForm() {
         throw new Error("Google sign-in did not return a credential.");
       }
 
-      await googleLogin(token);
+      await googleLogin(token).unwrap();
       router.push(next);
     } catch (err) {
-      setError(err.message ?? "Google sign-in failed. Please try again.");
+      setError(rtkErrorMessage(err) || "Google sign-in failed. Please try again.");
     } finally {
       setLoading(false);
     }

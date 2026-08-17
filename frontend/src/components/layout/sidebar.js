@@ -16,7 +16,7 @@ import {
 } from "@phosphor-icons/react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
-import { getCurrentUser, onAuthChanged } from "@/lib/auth";
+import { useGetCurrentUserQuery } from "@/lib/redux/api";
 import { getSubscriptions } from "@/lib/video";
 import { channelPath } from "@/lib/videoId";
 
@@ -69,6 +69,7 @@ function ChannelAvatar({ name, imageUrl }) {
 }
 
 export default function Sidebar({ open = false, onClose }) {
+  const { data: user } = useGetCurrentUserQuery();
   const pathname = usePathname();
   const [subscriptions, setSubscriptions] = useState([]);
   const theme = useSyncExternalStore(
@@ -87,34 +88,25 @@ export default function Sidebar({ open = false, onClose }) {
   useEffect(() => {
     let cancelled = false;
 
-    function loadSubscriptions() {
-      getCurrentUser()
-        .then((user) => {
-          if (cancelled) return null;
-          if (!user) {
-            setSubscriptions([]);
-            return null;
-          }
-          return getSubscriptions();
-        })
-        .then((channels) => {
-          if (cancelled || !channels) return;
-          const list = Array.isArray(channels) ? channels : channels.items ?? [];
-          setSubscriptions(list.slice(0, 5));
-        })
-        .catch(() => {
-          if (!cancelled) setSubscriptions([]);
-        });
+    if (!user) {
+      setSubscriptions([]);
+      return undefined;
     }
 
-    loadSubscriptions();
-    const unsubscribe = onAuthChanged(loadSubscriptions);
+    getSubscriptions()
+      .then((channels) => {
+        if (cancelled || !channels) return;
+        const list = Array.isArray(channels) ? channels : channels.items ?? [];
+        setSubscriptions(list.slice(0, 5));
+      })
+      .catch(() => {
+        if (!cancelled) setSubscriptions([]);
+      });
 
     return () => {
       cancelled = true;
-      unsubscribe();
     };
-  }, []);
+  }, [user]);
 
   return (
     <aside

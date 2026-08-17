@@ -22,7 +22,9 @@ import { PencilSimpleIcon} from "@phosphor-icons/react";
 import Image from "next/image";
 import Link from "next/link";
 import MainLayout from "@/components/layout/mainLayout";
-import { getCurrentUser, editProfile, uploadProfileImage } from "@/lib/auth";
+import { editProfile, uploadProfileImage } from "@/lib/auth";
+import { api, useGetCurrentUserQuery } from "@/lib/redux/api";
+import { useDispatch } from "react-redux";
 
 const ACCOUNT_LINKS = [
   { icon: KeyRound, label: "Change Password" },
@@ -44,33 +46,22 @@ export default function EditProfilePage() {
   const [loading, setLoading] = useState(false);
   const [checkingSession, setCheckingSession] = useState(true);
   const fileInputRef = useRef(null);
+  const dispatch = useDispatch();
+  const { data: user, isLoading: userLoading } = useGetCurrentUserQuery();
 
   useEffect(() => {
-    let cancelled = false;
-
-    getCurrentUser()
-      .then((user) => {
-        if (cancelled) return;
-        if (!user) {
-          router.replace("/login");
-          return;
-        }
-        setUsername(user.username ?? "");
-        setEmail(user.email ?? "");
-        setFullName(user.full_name ?? "");
-        setProfileImageUrl(user.profile_image_url ?? "");
-      })
-      .catch(() => {
-        if (!cancelled) router.replace("/login");
-      })
-      .finally(() => {
-        if (!cancelled) setCheckingSession(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router]);
+    if (userLoading) return;
+    if (!user) {
+      router.replace("/login");
+      setCheckingSession(false);
+      return;
+    }
+    setUsername(user.username ?? "");
+    setEmail(user.email ?? "");
+    setFullName(user.full_name ?? "");
+    setProfileImageUrl(user.profile_image_url ?? "");
+    setCheckingSession(false);
+  }, [user, userLoading, router]);
 
   function handleImageChange(e) {
     const file = e.target.files?.[0];
@@ -100,6 +91,7 @@ export default function EditProfilePage() {
         setPreviewUrl("");
       }
       await editProfile({ username, email, fullName });
+      dispatch(api.util.invalidateTags(["User"]));
       setSuccess("Profile updated successfully.");
       router.refresh();
     } catch (err) {

@@ -1,43 +1,24 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
 import MainLayout from "@/components/layout/mainLayout";
-import { getCurrentUser } from "@/lib/auth";
+import { useGetCurrentUserQuery } from "@/lib/redux/api";
 
 export default function AuthGate({ children, feature }) {
   const router = useRouter();
   const pathname = usePathname();
-  const [allowed, setAllowed] = useState(false);
+  const { data: user, isLoading } = useGetCurrentUserQuery();
 
   useEffect(() => {
-    let cancelled = false;
+    if (isLoading || user) return;
+    const params = new URLSearchParams({ next: pathname });
+    if (feature) params.set("feature", feature);
+    router.replace(`/login-required?${params.toString()}`);
+  }, [isLoading, user, router, pathname, feature]);
 
-    getCurrentUser()
-      .then((user) => {
-        if (cancelled) return;
-        if (!user) {
-          const params = new URLSearchParams({ next: pathname });
-          if (feature) params.set("feature", feature);
-          router.replace(`/login-required?${params.toString()}`);
-          return;
-        }
-        setAllowed(true);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        const params = new URLSearchParams({ next: pathname });
-        if (feature) params.set("feature", feature);
-        router.replace(`/login-required?${params.toString()}`);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router, pathname, feature]);
-
-  if (!allowed) {
+  if (isLoading || !user) {
     return (
       <MainLayout>
         <div className="flex justify-center py-16">

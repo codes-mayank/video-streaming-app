@@ -11,14 +11,14 @@ import VideoGrid from "@/components/home/videogrid";
 import SubscribeButton from "@/components/video/subscribebutton";
 import { getChannel, getChannelVideos, toVideoCardProps } from "@/lib/video";
 import { decodeChannelId } from "@/lib/videoId";
-import { getCurrentUser } from "@/lib/auth";
+import { useGetCurrentUserQuery } from "@/lib/redux/api";
 
 const PAGE_SIZE = 15;
 
 export default function ChannelPage() {
   const { id } = useParams();
   const [channel, setChannel] = useState(null);
-  const [user, setUser] = useState(null);
+  const { data: user } = useGetCurrentUserQuery();
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(true);
   const [videos, setVideos] = useState([]);
@@ -43,13 +43,9 @@ export default function ChannelPage() {
       setLoading(true);
       setError(null);
       try {
-        const [channelData, currentUser] = await Promise.all([
-          getChannel(channelId),
-          getCurrentUser().catch(() => null),
-        ]);
+        const channelData = await getChannel(channelId);
         if (cancelled) return;
         setChannel(channelData);
-        setUser(currentUser);
       } catch (err) {
         if (!cancelled) {
           setError(err.message || "Failed to load channel.");

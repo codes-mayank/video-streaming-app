@@ -18,7 +18,7 @@ import {
   Loader2,
 } from "lucide-react";
 import MainLayout from "@/components/layout/mainLayout";
-import { getCurrentUser } from "@/lib/auth";
+import { useGetCurrentUserQuery } from "@/lib/redux/api";
 import { uploadVideo } from "@/lib/video";
 import { watchPath } from "@/lib/videoId";
 import { DEFAULT_VIDEO_CATEGORY, VIDEO_CATEGORIES } from "@/lib/categories";
@@ -66,7 +66,7 @@ function formatFileSize(bytes) {
 
 export default function UploadPage() {
   const router = useRouter();
-  const [user, setUser] = useState(null);
+  const { data: user, isLoading: checkingUser } = useGetCurrentUserQuery();
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [category, setCategory] = useState(DEFAULT_VIDEO_CATEGORY);
@@ -81,11 +81,8 @@ export default function UploadPage() {
   const thumbnailInputRef = useRef(null);
 
   useEffect(() => {
-    getCurrentUser().then((u) => {
-      if (!u) router.replace("/login");
-      else setUser(u);
-    });
-  }, [router]);
+    if (!checkingUser && !user) router.replace("/login");
+  }, [checkingUser, user, router]);
 
   useEffect(() => {
     if (!thumbnailFile) {
@@ -171,7 +168,7 @@ export default function UploadPage() {
     }
   }
 
-  if (!user) {
+  if (checkingUser || !user) {
     return (
       <MainLayout>
         <p className="text-zinc-500">Loading…</p>

@@ -25,8 +25,9 @@ const nextConfig = {
 
     return [
       {
+        // Browser: /api/users/auth/me → auth-service: /auth/me
         source: "/api/users/:path*",
-        destination: `${AUTH_SERVICE}/users/:path*`,
+        destination: `${AUTH_SERVICE}/:path*`,
       },
       {
         source: "/api/videos",

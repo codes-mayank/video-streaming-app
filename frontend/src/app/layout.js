@@ -1,6 +1,7 @@
 import { Geist, Geist_Mono } from "next/font/google";
 import SessionKeepAlive from "@/components/auth/sessionkeepalive";
 import "./globals.css";
+import Providers from "@/components/Providers";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -42,7 +43,9 @@ export default function RootLayout({ children }) {
       </head>
       <body className="h-full overflow-hidden min-h-full flex flex-col">
         <SessionKeepAlive />
-        {children}
+        <Providers>
+          {children}
+        </Providers>
       </body>
     </html>
   );

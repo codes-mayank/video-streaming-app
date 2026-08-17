@@ -288,7 +288,7 @@ def _rewrite_hls_playlist(content: str, video_id: int, current_key: str) -> str:
             rewritten.append(raw_line)
             continue
         target_key = str((base_dir / line).as_posix())
-        rewritten.append(f"/videos/{video_id}/hls/object?key={target_key}")
+        rewritten.append(f"/api/videos/{video_id}/hls/object?key={target_key}")
     return "\n".join(rewritten) + "\n"
 
 #TODO: We also need Database support for transcoder

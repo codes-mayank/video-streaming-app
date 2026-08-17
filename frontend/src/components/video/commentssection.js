@@ -5,7 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { ChevronDown, Loader2, Smile, ThumbsUp, Trash2 } from "lucide-react";
-import { getCurrentUser } from "@/lib/auth";
+import { useGetCurrentUserQuery } from "@/lib/redux/api";
 import { createComment, deleteComment, getComments } from "@/lib/video";
 import EmojiPicker from "emoji-picker-react";
 
@@ -20,7 +20,7 @@ function formatTimeAgo(dateString) {
 
 export default function CommentsSection({ videoId }) {
   const router = useRouter();
-  const [user, setUser] = useState(null);
+  const { data: user } = useGetCurrentUserQuery();
   const [comments, setComments] = useState([]);
   const [total, setTotal] = useState(0);
   const [nextCursor, setNextCursor] = useState(null);
@@ -48,11 +48,7 @@ export default function CommentsSection({ videoId }) {
       setLoading(true);
       setError("");
       try {
-        const [currentUser] = await Promise.all([
-          getCurrentUser(),
-          loadComments(),
-        ]);
-        if (!cancelled) setUser(currentUser);
+        await loadComments();
       } catch (err) {
         if (!cancelled) setError(err.message ?? "Failed to load comments.");
       } finally {

@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { History } from "lucide-react";
 import VideoCard from "@/components/video/videocard";
-import { getCurrentUser } from "@/lib/auth";
+import { useGetCurrentUserQuery } from "@/lib/redux/api";
 import { getWatchHistory, getThumbnailUrl } from "@/lib/video";
 
 const FALLBACK_THUMBNAIL =
@@ -26,16 +26,18 @@ function toCardProps(video) {
 }
 
 export default function ContinueWatching() {
+  const { data: user } = useGetCurrentUserQuery();
   const [videos, setVideos] = useState([]);
 
   useEffect(() => {
     let cancelled = false;
 
-    getCurrentUser()
-      .then((user) => {
-        if (!user || cancelled) return null;
-        return getWatchHistory({ limit: 4 });
-      })
+    if (!user) {
+      setVideos([]);
+      return undefined;
+    }
+
+    getWatchHistory({ limit: 4 })
       .then((data) => {
         if (cancelled || !data) return;
         const list = Array.isArray(data) ? data : data.items ?? [];
@@ -46,7 +48,7 @@ export default function ContinueWatching() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [user]);
 
   if (!videos.length) return null;
 

@@ -1,12 +1,12 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Loader2, LogIn, UserPlus } from "lucide-react";
 import MainLayout from "@/components/layout/mainLayout";
 import GlassCard from "@/components/ui/glasscard";
-import { getCurrentUser } from "@/lib/auth";
+import { useGetCurrentUserQuery } from "@/lib/redux/api";
 
 function getSafeNext(next) {
   if (typeof next === "string" && next.startsWith("/") && !next.startsWith("//")) {
@@ -29,26 +29,11 @@ function LoginRequiredContent() {
   const next = getSafeNext(searchParams.get("next"));
   const featureKey = searchParams.get("feature");
   const featureLabel = FEATURE_LABELS[featureKey] ?? "this page";
-  const [checkingSession, setCheckingSession] = useState(true);
+  const { data: user, isLoading: checkingSession } = useGetCurrentUserQuery();
 
   useEffect(() => {
-    let cancelled = false;
-
-    getCurrentUser()
-      .then((user) => {
-        if (!cancelled && user) {
-          router.replace(next);
-        }
-      })
-      .catch(() => {})
-      .finally(() => {
-        if (!cancelled) setCheckingSession(false);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [router, next]);
+    if (user) router.replace(next);
+  }, [user, router, next]);
 
   const loginHref = `/login?next=${encodeURIComponent(next)}`;
   const signupHref = `/signup?next=${encodeURIComponent(next)}`;

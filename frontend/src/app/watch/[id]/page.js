@@ -13,7 +13,7 @@ import SubscribeButton from "@/components/video/subscribebutton";
 import WatchSidebar from "@/components/video/watchsidebar";
 import { deleteVideo, getVideo, getPlaybackSource } from "@/lib/video";
 import { decodeVideoId } from "@/lib/videoId";
-import { getCurrentUser } from "@/lib/auth";
+import { useGetCurrentUserQuery } from "@/lib/redux/api";
 import { getCategoryLabel } from "@/lib/categories";
 
 function formatViews(count) {
@@ -44,7 +44,7 @@ export default function WatchPage() {
   const router = useRouter();
   const [video, setVideo] = useState(null);
   const [error, setError] = useState(null);
-  const [user, setUser] = useState(null);
+  const { data: user } = useGetCurrentUserQuery();
   const [descExpanded, setDescExpanded] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
@@ -56,7 +56,6 @@ export default function WatchPage() {
       return;
     }
 
-    getCurrentUser().then(setUser).catch(() => setUser(null));
     getVideo(videoId)
       .then(setVideo)
       .catch((err) => setError(err.message));
