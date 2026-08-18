@@ -6,7 +6,12 @@ import MainLayout from "@/components/layout/mainLayout";
 import ChannelCard from "@/components/ui/channelcard";
 import VideoGrid from "@/components/home/videogrid";
 import AuthGate from "@/components/auth/authgate";
-import { getSubscriptions, getVideos, toVideoCardProps } from "@/lib/video";
+import { toVideoCardProps } from "@/lib/video";
+import {
+  rtkErrorMessage,
+  useGetSubscriptionsQuery,
+  useGetVideosQuery,
+} from "@/lib/redux/api";
 
 function toChannelProps(channel, index) {
   return {
@@ -95,56 +100,21 @@ function HorizontalScroller({ children, empty }) {
 }
 
 function SubscriptionsContent() {
-  const [subscribedChannels, setSubscribedChannels] = useState([]);
-  const [recentVideos, setRecentVideos] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
+  const { data, isLoading, error } = useGetSubscriptionsQuery();
+  const channels = (Array.isArray(data) ? data : data?.items ?? []).map(toChannelProps);
+  const channelIds = new Set(channels.map((channel) => String(channel.id)));
 
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      setLoading(true);
-      setError(null);
-      try {
-        const channelsData = await getSubscriptions();
-        const channels = Array.isArray(channelsData)
-          ? channelsData
-          : channelsData.items ?? [];
-        if (cancelled) return;
-
-        setSubscribedChannels(channels.map(toChannelProps));
-
-        const channelIds = new Set(channels.map((c) => String(c.id)));
-        if (channelIds.size === 0) {
-          setRecentVideos([]);
-          return;
-        }
-
-        const videosData = await getVideos({ limit: 24 });
-        if (cancelled) return;
-
-        const items = (videosData.items ?? [])
-          .filter((video) => channelIds.has(String(video.user_id)))
-          .slice(0, 10)
-          .map(toVideoProps);
-
-        setRecentVideos(items);
-      } catch (err) {
-        if (!cancelled) {
-          console.error(err);
-          setError(err.message || "Failed to load subscriptions.");
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
+  const { data: videosData, isLoading: videosLoading } = useGetVideosQuery(
+    { limit: 24 },
+    { skip: channels.length === 0 }
+  );
+  const videoItems = Array.isArray(videosData)
+    ? videosData
+    : videosData?.items ?? [];
+  const recentVideos = videoItems
+    .filter((video) => channelIds.has(String(video.user_id)))
+    .slice(0, 10)
+    .map(toVideoProps);
 
   return (
     <MainLayout>
@@ -160,18 +130,20 @@ function SubscriptionsContent() {
           </div>
         </div>
 
-        {loading && <p className="text-sm text-zinc-500">Loading channels...</p>}
-        {error && <p className="text-sm text-[var(--brand)]">{error}</p>}
+        {isLoading && <p className="text-sm text-zinc-500">Loading channels...</p>}
+        {error && (
+          <p className="text-sm text-[var(--brand)]">{rtkErrorMessage(error)}</p>
+        )}
 
-        {!loading && !error && subscribedChannels.length === 0 && (
+        {!isLoading && !error && channels.length === 0 && (
           <p className="rounded-2xl border border-dashed border-zinc-200 bg-white px-6 py-10 text-center text-sm text-zinc-500">
             You haven&apos;t subscribed to any channels yet.
           </p>
         )}
 
-        {!loading && subscribedChannels.length > 0 && (
+        {!isLoading && channels.length > 0 && (
           <HorizontalScroller>
-            {subscribedChannels.map((channel) => (
+            {channels.map((channel) => (
               <ChannelCard key={channel.id ?? channel.username} {...channel} />
             ))}
           </HorizontalScroller>
@@ -185,7 +157,11 @@ function SubscriptionsContent() {
           </h2>
         </div>
 
-        {!loading && recentVideos.length === 0 ? (
+        {videosLoading && (
+          <p className="text-sm text-zinc-500">Loading recent videos...</p>
+        )}
+
+        {!isLoading && !videosLoading && recentVideos.length === 0 ? (
           <p className="rounded-2xl border border-dashed border-zinc-200 bg-white px-6 py-10 text-center text-sm text-zinc-500">
             No recent videos from your subscriptions.
           </p>

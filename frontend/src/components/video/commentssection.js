@@ -1,12 +1,17 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
-import { ChevronDown, Loader2, Smile, ThumbsUp, Trash2 } from "lucide-react";
-import { useGetCurrentUserQuery } from "@/lib/redux/api";
-import { createComment, deleteComment, getComments } from "@/lib/video";
+import { Loader2, Smile, ThumbsUp, Trash2 } from "lucide-react";
+import {
+  rtkErrorMessage,
+  useCreateCommentMutation,
+  useDeleteCommentMutation,
+  useGetCommentsQuery,
+  useGetCurrentUserQuery,
+} from "@/lib/redux/api";
 import EmojiPicker from "emoji-picker-react";
 
 function formatTimeAgo(dateString) {
@@ -21,46 +26,28 @@ function formatTimeAgo(dateString) {
 export default function CommentsSection({ videoId }) {
   const router = useRouter();
   const { data: user } = useGetCurrentUserQuery();
-  const [comments, setComments] = useState([]);
-  const [total, setTotal] = useState(0);
-  const [nextCursor, setNextCursor] = useState(null);
-  const [hasMore, setHasMore] = useState(false);
+  const [cursor, setCursor] = useState(undefined);
   const [body, setBody] = useState("");
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
   const [error, setError] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
 
-  const loadComments = useCallback(async (cursor) => {
-    const data = await getComments(videoId, { cursor });
-    setComments((prev) => (cursor ? [...prev, ...data.items] : data.items));
-    setTotal(data.total);
-    setNextCursor(data.next_cursor);
-    setHasMore(data.has_more);
-  }, [videoId]);
+  const { data, isLoading, isFetching, error: commentsError } = useGetCommentsQuery(
+    { videoId, limit: 20, cursor },
+    { skip: !videoId }
+  );
+  const [createComment, { isLoading: submitting }] = useCreateCommentMutation();
+  const [deleteComment] = useDeleteCommentMutation();
 
   useEffect(() => {
-    let cancelled = false;
+    setCursor(undefined);
+  }, [videoId]);
 
-    async function init() {
-      setLoading(true);
-      setError("");
-      try {
-        await loadComments();
-      } catch (err) {
-        if (!cancelled) setError(err.message ?? "Failed to load comments.");
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    init();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadComments]);
+  const comments = data?.items ?? [];
+  const total = data?.total ?? comments.length;
+  const hasMore = Boolean(data?.has_more);
+  const nextCursor = data?.next_cursor ?? null;
+  const loadingMore = Boolean(cursor) && isFetching;
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -72,72 +59,42 @@ export default function CommentsSection({ videoId }) {
       return;
     }
 
-    const optimisticId = -Date.now();
-    const optimistic = {
-      id: optimisticId,
-      video_id: Number(videoId),
-      user_id: user.id ?? user.user_id,
-      username: user.username || user.name || "You",
-      body: trimmed,
-      created_at: new Date().toISOString(),
-      is_owner: true,
-      client_id: null,
-    };
-
-    setComments((prev) => [optimistic, ...prev]);
-    setTotal((count) => count + 1);
     setBody("");
-    setSubmitting(true);
     setError("");
 
     try {
-      const comment = await createComment(videoId, trimmed);
-      setComments((prev) =>
-        prev.map((item) => (item.id === optimisticId ? { ...comment, is_owner: true } : item))
-      );
+      await createComment({ videoId, body: trimmed }).unwrap();
+      setCursor(undefined);
     } catch (err) {
-      setComments((prev) => prev.filter((item) => item.id !== optimisticId));
-      setTotal((count) => Math.max(0, count - 1));
       setBody(trimmed);
-      if (err.message?.includes("Not authenticated")) {
+      const message = rtkErrorMessage(err);
+      if (message.includes("Not authenticated") || err?.status === 401) {
         router.push("/login");
         return;
       }
-      setError(err.message ?? "Failed to post comment.");
-    } finally {
-      setSubmitting(false);
+      setError(message || "Failed to post comment.");
     }
   }
 
   async function handleLoadMore() {
-    if (!nextCursor) return;
-    setLoadingMore(true);
+    if (!nextCursor || loadingMore) return;
     setError("");
-    try {
-      await loadComments(nextCursor);
-    } catch (err) {
-      setError(err.message ?? "Failed to load more comments.");
-    } finally {
-      setLoadingMore(false);
-    }
+    setCursor(nextCursor);
   }
 
   async function handleDelete(comment) {
     const commentId = comment.id;
     setDeletingId(commentId);
     setError("");
-
-    const previous = comments;
-    const previousTotal = total;
-    setComments((prev) => prev.filter((item) => item.id !== commentId));
-    setTotal((count) => Math.max(0, count - 1));
-
     try {
-      await deleteComment(videoId, commentId, comment.client_id);
+      await deleteComment({
+        videoId,
+        commentId,
+        clientId: comment.client_id,
+      }).unwrap();
+      setCursor(undefined);
     } catch (err) {
-      setComments(previous);
-      setTotal(previousTotal);
-      setError(err.message ?? "Failed to delete comment.");
+      setError(rtkErrorMessage(err) || "Failed to delete comment.");
     } finally {
       setDeletingId(null);
     }
@@ -200,13 +157,13 @@ export default function CommentsSection({ videoId }) {
         </p>
       )}
 
-      {error && (
+      {(error || commentsError) && (
         <p className="mb-4 rounded-lg bg-[var(--brand-soft)] px-3 py-2 text-sm text-[var(--brand)]">
-          {error}
+          {error || rtkErrorMessage(commentsError)}
         </p>
       )}
 
-      {loading ? (
+      {isLoading ? (
         <div className="flex justify-center py-8">
           <Loader2 size={24} className="animate-spin text-zinc-400" />
         </div>
@@ -257,7 +214,7 @@ export default function CommentsSection({ videoId }) {
         </ul>
       )}
 
-      {hasMore && !loading && (
+      {hasMore && !isLoading && (
         <button
           type="button"
           onClick={handleLoadMore}

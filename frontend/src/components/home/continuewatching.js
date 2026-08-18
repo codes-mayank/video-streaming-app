@@ -1,17 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import { History } from "lucide-react";
 import VideoCard from "@/components/video/videocard";
-import { useGetCurrentUserQuery } from "@/lib/redux/api";
-import { getWatchHistory, getThumbnailUrl } from "@/lib/video";
+import { getThumbnailUrl } from "@/lib/video";
+import { useGetCurrentUserQuery, useGetWatchHistoryQuery } from "@/lib/redux/api";
 
 const FALLBACK_THUMBNAIL =
   "https://placehold.co/640x360/e2e8f0/64748b?text=Video";
 
 function toCardProps(video) {
-  // Placeholder progress until watch-position is tracked in the API
   const progress = ((Number(video.id) * 37) % 70) + 20;
   return {
     id: video.id,
@@ -27,28 +25,8 @@ function toCardProps(video) {
 
 export default function ContinueWatching() {
   const { data: user } = useGetCurrentUserQuery();
-  const [videos, setVideos] = useState([]);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!user) {
-      setVideos([]);
-      return undefined;
-    }
-
-    getWatchHistory({ limit: 4 })
-      .then((data) => {
-        if (cancelled || !data) return;
-        const list = Array.isArray(data) ? data : data.items ?? [];
-        setVideos(list.map(toCardProps));
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
+  const { data } = useGetWatchHistoryQuery({ limit: 4 }, { skip: !user });
+  const videos = (Array.isArray(data) ? data : data?.items ?? []).map(toCardProps);
 
   if (!videos.length) return null;
 

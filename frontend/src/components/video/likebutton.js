@@ -4,7 +4,11 @@ import { useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ThumbsUp, Loader2 } from "lucide-react";
-import { likeVideo, unlikeVideo } from "@/lib/video";
+import {
+  rtkErrorMessage,
+  useLikeVideoMutation,
+  useUnlikeVideoMutation,
+} from "@/lib/redux/api";
 
 function formatCount(count) {
   const n = Number(count) || 0;
@@ -19,6 +23,8 @@ export default function LikeButton({ videoId, initialCount = 0, initialLiked = f
   const [liked, setLiked] = useState(initialLiked);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [likeVideo] = useLikeVideoMutation();
+  const [unlikeVideo] = useUnlikeVideoMutation();
 
   async function handleToggle() {
     if (loading) return;
@@ -34,18 +40,19 @@ export default function LikeButton({ videoId, initialCount = 0, initialLiked = f
 
     try {
       if (nextLiked) {
-        await likeVideo(videoId);
+        await likeVideo(videoId).unwrap();
       } else {
-        await unlikeVideo(videoId);
+        await unlikeVideo(videoId).unwrap();
       }
     } catch (err) {
       setLiked(previousLiked);
       setLikeCount(previousCount);
-      if (err.message?.includes("Not authenticated") || err.message?.includes("401")) {
+      const message = rtkErrorMessage(err);
+      if (message.includes("Not authenticated") || err?.status === 401) {
         router.push("/login");
         return;
       }
-      setError(err.message ?? "Could not update like.");
+      setError(message || "Could not update like.");
     } finally {
       setLoading(false);
     }

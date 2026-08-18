@@ -3,22 +3,28 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { Loader2 } from "lucide-react";
-import { subscribeToChannel, unsubscribeFromChannel, checkSubscription } from "@/lib/video";
+import {
+  rtkErrorMessage,
+  useCheckSubscriptionQuery,
+  useSubscribeMutation,
+  useUnsubscribeMutation,
+} from "@/lib/redux/api";
 
 export default function SubscribeButton({ userId, initialSubscribed = false }) {
   const router = useRouter();
   const [subscribed, setSubscribed] = useState(initialSubscribed);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [subscribe] = useSubscribeMutation();
+  const [unsubscribe] = useUnsubscribeMutation();
+  const { data: subscription } = useCheckSubscriptionQuery(userId, {
+    skip: !userId,
+  });
 
   useEffect(() => {
-    if (!userId) return;
-    checkSubscription(userId)
-      .then((subscription) => {
-        setSubscribed(subscription !== null);
-      })
-      .catch(() => {});
-  }, [userId]);
+    if (subscription === undefined) return;
+    setSubscribed(subscription != null);
+  }, [subscription]);
 
   async function handleToggle() {
     if (loading || !userId) return;
@@ -33,17 +39,18 @@ export default function SubscribeButton({ userId, initialSubscribed = false }) {
 
     try {
       if (next) {
-        await subscribeToChannel(userId);
+        await subscribe(userId).unwrap();
       } else {
-        await unsubscribeFromChannel(userId);
+        await unsubscribe(userId).unwrap();
       }
     } catch (err) {
       setSubscribed(previous);
-      if (err.message?.includes("Not authenticated") || err.message?.includes("401")) {
+      const message = rtkErrorMessage(err);
+      if (message.includes("Not authenticated") || err?.status === 401) {
         router.push("/login");
         return;
       }
-      setError(err.message ?? "Something went wrong. Please try again.");
+      setError(message);
     } finally {
       setLoading(false);
     }

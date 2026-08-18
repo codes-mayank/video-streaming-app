@@ -1,10 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
 import Link from "next/link";
 import VideoCard from "@/components/video/videocard";
-import { useGetCurrentUserQuery } from "@/lib/redux/api";
-import { getWatchHistory, getThumbnailUrl } from "@/lib/video";
+import { getThumbnailUrl } from "@/lib/video";
+import { useGetCurrentUserQuery, useGetWatchHistoryQuery } from "@/lib/redux/api";
 
 const FALLBACK_THUMBNAIL =
   "https://placehold.co/640x360/e2e8f0/64748b?text=Video";
@@ -25,62 +24,14 @@ function toCardProps(video) {
 
 export default function WatchSidebar({ excludeVideoId }) {
   const { data: user } = useGetCurrentUserQuery();
-  const [videos, setVideos] = useState([]);
-  const [autoplay, setAutoplay] = useState(true);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!user) {
-      setVideos([]);
-      return undefined;
-    }
-
-    getWatchHistory({ limit: 8 })
-      .then((data) => {
-        if (cancelled || !data) return;
-        const list = Array.isArray(data) ? data : data.items ?? [];
-        setVideos(
-          list
-            .filter((video) => String(video.id) !== String(excludeVideoId))
-            .slice(0, 4)
-            .map(toCardProps)
-        );
-      })
-      .catch(() => {});
-
-    return () => {
-      cancelled = true;
-    };
-  }, [excludeVideoId, user]);
+  const { data } = useGetWatchHistoryQuery({ limit: 8 }, { skip: !user });
+  const videos = (Array.isArray(data) ? data : data?.items ?? [])
+    .filter((video) => String(video.id) !== String(excludeVideoId))
+    .slice(0, 4)
+    .map(toCardProps);
 
   return (
     <aside className="space-y-8 overflow-y-auto max-h-[calc(100vh-7rem)] [&::-webkit-scrollbar]:hidden">
-      {/* <section> */}
-        {/* <div className="mb-4 flex items-center justify-between gap-3">
-          <h2 className="text-base font-bold text-zinc-900">Up Next</h2>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-zinc-500">
-            Autoplay
-            <button
-              type="button"
-              role="switch"
-              aria-checked={autoplay}
-              onClick={() => setAutoplay((prev) => !prev)}
-              className={`relative h-5 w-9 rounded-full transition-colors ${
-                autoplay ? "bg-[var(--brand)]" : "bg-zinc-300"
-              }`}
-            >
-              <span
-                className={`absolute top-0.5 left-0.5 h-4 w-4 rounded-full bg-white shadow transition-transform ${
-                  autoplay ? "translate-x-4" : "translate-x-0"
-                }`}
-              />
-            </button>
-          </label>
-        </div> */}
-        {/* Up Next list intentionally empty */}
-      {/* </section> */}
-
       {videos.length > 0 && (
         <section>
           <div className="mb-4 flex items-center justify-between gap-3">

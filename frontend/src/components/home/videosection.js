@@ -1,10 +1,11 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { Flame, History } from "lucide-react";
 import { Video } from "@phosphor-icons/react";
 import VideoGrid from "./videogrid";
-import { getVideos, toVideoCardProps } from "@/lib/video";
+import { toVideoCardProps } from "@/lib/video";
+import { rtkErrorMessage, useGetVideosQuery } from "@/lib/redux/api";
 
 const PAGE_SIZE = 15;
 
@@ -13,68 +14,28 @@ const SECTION_ICONS = {
   "Continue Watching": History,
 };
 
-export default function VideoSection({ title, category, href = "/" }) {
+export default function VideoSection({ title, category }) {
   const Icon = SECTION_ICONS[title] ?? Flame;
-  const [videos, setVideos] = useState([]);
-  const [nextCursor, setNextCursor] = useState(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [error, setError] = useState(null);
-  const loadingMoreRef = useRef(false);
-
-  const loadVideos = useCallback(
-    async (cursor) => {
-      const data = await getVideos({ category, limit: PAGE_SIZE, cursor });
-      const items = (data.items ?? []).map((video) => toVideoCardProps(video));
-      setVideos((prev) => (cursor ? [...prev, ...items] : items));
-      setNextCursor(data.next_cursor ?? null);
-      setHasMore(Boolean(data.has_more));
-    },
-    [category]
-  );
+  const [cursor, setCursor] = useState(undefined);
+  const { data, isLoading, isFetching, error } = useGetVideosQuery({
+    category,
+    limit: PAGE_SIZE,
+    cursor,
+  });
 
   useEffect(() => {
-    let cancelled = false;
+    setCursor(undefined);
+  }, [category]);
 
-    async function init() {
-      setLoading(true);
-      setError(null);
-      setVideos([]);
-      setNextCursor(null);
-      setHasMore(false);
-      try {
-        await loadVideos();
-      } catch (err) {
-        if (!cancelled) {
-          console.error("getVideos failed:", err);
-          setError(err.message);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
+  const videos = (data?.items ?? []).map((video) => toVideoCardProps(video));
+  const hasMore = Boolean(data?.has_more);
+  const nextCursor = data?.next_cursor ?? null;
+  const loadingMore = Boolean(cursor) && isFetching;
 
-    init();
-    return () => {
-      cancelled = true;
-    };
-  }, [loadVideos]);
-
-  const handleNearEnd = useCallback(() => {
-    if (!hasMore || !nextCursor || loadingMoreRef.current) return;
-    loadingMoreRef.current = true;
-    setLoadingMore(true);
-    loadVideos(nextCursor)
-      .catch((err) => {
-        console.error("getVideos failed:", err);
-        setError(err.message);
-      })
-      .finally(() => {
-        loadingMoreRef.current = false;
-        setLoadingMore(false);
-      });
-  }, [hasMore, nextCursor, loadVideos]);
+  function handleNearEnd() {
+    if (!hasMore || !nextCursor || loadingMore) return;
+    setCursor(nextCursor);
+  }
 
   return (
     <section className="mb-10">
@@ -87,9 +48,11 @@ export default function VideoSection({ title, category, href = "/" }) {
         </h2>
       </div>
 
-      {loading && <p className="text-gray-500">Loading videos...</p>}
-      {error && !videos.length && <p className="text-red-500">{error}</p>}
-      {!loading && !error && !videos.length && (
+      {isLoading && <p className="text-gray-500">Loading videos...</p>}
+      {error && !videos.length && (
+        <p className="text-red-500">{rtkErrorMessage(error)}</p>
+      )}
+      {!isLoading && !error && !videos.length && (
         <p className="text-gray-500">No videos yet.</p>
       )}
 

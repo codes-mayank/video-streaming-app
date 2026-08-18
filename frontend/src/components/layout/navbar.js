@@ -114,9 +114,9 @@ function NavbarContent({ onMenuClick }) {
           placeholder="Search videos..."
           className="w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--input-placeholder)]"
         />
-        <kbd className="hidden shrink-0 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 sm:inline">
+        {/* <kbd className="hidden shrink-0 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 sm:inline"> */}
           {searchQuery ? <X size={16} onClick={handleClearSearch} className="cursor-pointer" /> : null}
-        </kbd>
+        {/* </kbd> */}
       </form>
 
       <div className="flex items-space-between gap-2">

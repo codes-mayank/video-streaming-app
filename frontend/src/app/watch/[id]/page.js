@@ -11,9 +11,15 @@ import LikeButton from "@/components/video/likebutton";
 import CommentsSection from "@/components/video/commentssection";
 import SubscribeButton from "@/components/video/subscribebutton";
 import WatchSidebar from "@/components/video/watchsidebar";
-import { deleteVideo, getVideo, getPlaybackSource } from "@/lib/video";
+import { getPlaybackSource } from "@/lib/video";
 import { decodeVideoId } from "@/lib/videoId";
-import { useGetCurrentUserQuery } from "@/lib/redux/api";
+import {
+  rtkErrorMessage,
+  useAddWatchHistoryMutation,
+  useDeleteVideoMutation,
+  useGetCurrentUserQuery,
+  useGetVideoQuery,
+} from "@/lib/redux/api";
 import { getCategoryLabel } from "@/lib/categories";
 
 function formatViews(count) {
@@ -42,24 +48,23 @@ function channelInitial(name) {
 export default function WatchPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [video, setVideo] = useState(null);
-  const [error, setError] = useState(null);
+  const videoId = decodeVideoId(id);
   const { data: user } = useGetCurrentUserQuery();
+  const {
+    data: video,
+    isLoading,
+    error: videoError,
+  } = useGetVideoQuery(videoId, { skip: !videoId });
+  const [addWatchHistory] = useAddWatchHistoryMutation();
+  const [deleteVideo, { isLoading: deleting }] = useDeleteVideoMutation();
+  const [error, setError] = useState(videoId ? null : "Video not found");
   const [descExpanded, setDescExpanded] = useState(false);
-  const [deleting, setDeleting] = useState(false);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   useEffect(() => {
-    const videoId = decodeVideoId(id);
-    if (!videoId) {
-      setError("Video not found");
-      return;
-    }
-
-    getVideo(videoId)
-      .then(setVideo)
-      .catch((err) => setError(err.message));
-  }, [id]);
+    if (!video?.id || !user) return;
+    addWatchHistory(video.id).catch(() => {});
+  }, [video?.id, user, addWatchHistory]);
 
   const playbackUrl = video?.playback_url ?? null;
   const playerOptions = useMemo(() => {
@@ -84,16 +89,14 @@ export default function WatchPage() {
   async function handleConfirmDelete() {
     if (!video || deleting) return;
 
-    setDeleting(true);
     setError(null);
     try {
-      await deleteVideo(video.id);
+      await deleteVideo(video.id).unwrap();
       setConfirmOpen(false);
       router.push("/");
       router.refresh();
     } catch (err) {
-      setError(err.message ?? "Failed to delete video.");
-      setDeleting(false);
+      setError(rtkErrorMessage(err) || "Failed to delete video.");
     }
   }
 
@@ -107,8 +110,10 @@ export default function WatchPage() {
         Back to Home
       </Link>
 
-      {error && <p className="text-[var(--brand)]">{error}</p>}
-      {!video && !error && <p className="text-zinc-500">Loading video...</p>}
+      {(error || videoError) && (
+        <p className="text-[var(--brand)]">{error || rtkErrorMessage(videoError)}</p>
+      )}
+      {isLoading && <p className="text-zinc-500">Loading video...</p>}
 
       {video && (
         <div className="grid grid-cols-1 gap-8 xl:grid-cols-[minmax(0,1fr)_260px]">

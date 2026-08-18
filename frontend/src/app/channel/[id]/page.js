@@ -1,118 +1,59 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowLeft, User } from "lucide-react";
 import { SealCheck, Video } from "@phosphor-icons/react";
 
 import MainLayout from "@/components/layout/mainLayout";
 import VideoGrid from "@/components/home/videogrid";
 import SubscribeButton from "@/components/video/subscribebutton";
-import { getChannel, getChannelVideos, toVideoCardProps } from "@/lib/video";
+import { toVideoCardProps } from "@/lib/video";
 import { decodeChannelId } from "@/lib/videoId";
-import { useGetCurrentUserQuery } from "@/lib/redux/api";
+import {
+  rtkErrorMessage,
+  useGetChannelQuery,
+  useGetChannelVideosQuery,
+  useGetCurrentUserQuery,
+} from "@/lib/redux/api";
 
 const PAGE_SIZE = 15;
 
 export default function ChannelPage() {
   const { id } = useParams();
-  const [channel, setChannel] = useState(null);
+  const channelId = decodeChannelId(id);
   const { data: user } = useGetCurrentUserQuery();
-  const [error, setError] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [videos, setVideos] = useState([]);
-  const [nextCursor, setNextCursor] = useState(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [videosLoading, setVideosLoading] = useState(false);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [videosError, setVideosError] = useState(null);
-  const loadingMoreRef = useRef(false);
-
-  useEffect(() => {
-    let cancelled = false;
-
-    async function load() {
-      const channelId = decodeChannelId(id);
-      if (!channelId) {
-        setError("Channel not found");
-        setLoading(false);
-        return;
-      }
-
-      setLoading(true);
-      setError(null);
-      try {
-        const channelData = await getChannel(channelId);
-        if (cancelled) return;
-        setChannel(channelData);
-      } catch (err) {
-        if (!cancelled) {
-          setError(err.message || "Failed to load channel.");
-          setChannel(null);
-        }
-      } finally {
-        if (!cancelled) setLoading(false);
-      }
-    }
-
-    load();
-    return () => {
-      cancelled = true;
-    };
-  }, [id]);
-
-  const loadVideos = useCallback(
-    async (cursor) => {
-      if (!channel?.id) return;
-      const data = await getChannelVideos(channel.id, {
-        limit: PAGE_SIZE,
-        cursor,
-      });
-      const items = (data.items ?? []).map((video) => toVideoCardProps(video));
-      setVideos((prev) => (cursor ? [...prev, ...items] : items));
-      setNextCursor(data.next_cursor ?? null);
-      setHasMore(Boolean(data.has_more));
-    },
-    [channel?.id]
+  const {
+    data: channel,
+    isLoading,
+    error,
+  } = useGetChannelQuery(channelId, { skip: !channelId });
+  const [cursor, setCursor] = useState(undefined);
+  const {
+    data: videosData,
+    isLoading: videosLoading,
+    isFetching,
+    error: videosError,
+  } = useGetChannelVideosQuery(
+    { userId: channelId, limit: PAGE_SIZE, cursor },
+    { skip: !channelId }
   );
 
   useEffect(() => {
-    if (!channel?.id) return;
-    let cancelled = false;
+    setCursor(undefined);
+  }, [channelId]);
 
-    async function initVideos() {
-      setVideosLoading(true);
-      setVideosError(null);
-      setVideos([]);
-      setNextCursor(null);
-      setHasMore(false);
-      try {
-        await loadVideos();
-      } catch (err) {
-        if (!cancelled) setVideosError(err.message || "Failed to load videos.");
-      } finally {
-        if (!cancelled) setVideosLoading(false);
-      }
-    }
+  const videos = (videosData?.items ?? []).map((video) => toVideoCardProps(video));
+  const hasMore = Boolean(videosData?.has_more);
+  const nextCursor = videosData?.next_cursor ?? null;
+  const loadingMore = Boolean(cursor) && isFetching;
 
-    initVideos();
-    return () => {
-      cancelled = true;
-    };
-  }, [channel?.id, loadVideos]);
-
-  const handleNearEnd = useCallback(() => {
-    if (!hasMore || !nextCursor || loadingMoreRef.current) return;
-    loadingMoreRef.current = true;
-    setLoadingMore(true);
-    loadVideos(nextCursor)
-      .catch((err) => setVideosError(err.message))
-      .finally(() => {
-        loadingMoreRef.current = false;
-        setLoadingMore(false);
-      });
-  }, [hasMore, nextCursor, loadVideos]);
+  function handleNearEnd() {
+    if (!hasMore || !nextCursor || loadingMore) return;
+    setCursor(nextCursor);
+  }
 
   const displayName = channel?.full_name || channel?.username || "Channel";
   const canSubscribe =
@@ -128,8 +69,12 @@ export default function ChannelPage() {
         Back to Subscriptions
       </Link>
 
-      {loading && <p className="text-sm text-zinc-500">Loading channel...</p>}
-      {error && <p className="text-sm text-[var(--brand)]">{error}</p>}
+      {isLoading && <p className="text-sm text-zinc-500">Loading channel...</p>}
+      {(error || !channelId) && (
+        <p className="text-sm text-[var(--brand)]">
+          {channelId ? rtkErrorMessage(error) : "Channel not found"}
+        </p>
+      )}
 
       {channel && (
         <>
@@ -137,7 +82,9 @@ export default function ChannelPage() {
             <div className="flex min-w-0 items-center gap-4">
               <div className="flex h-16 w-16 shrink-0 items-center justify-center overflow-hidden rounded-full bg-[var(--brand-soft)] text-[var(--brand)] sm:h-20 sm:w-20">
                 {channel.profile_image_url ? (
-                  <img
+                  <Image
+                    width={80}
+                    height={80}
                     src={channel.profile_image_url}
                     alt={displayName}
                     className="h-full w-full object-cover"
@@ -168,7 +115,7 @@ export default function ChannelPage() {
 
           {videosLoading && <p className="text-sm text-zinc-500">Loading videos...</p>}
           {videosError && !videos.length && (
-            <p className="text-sm text-[var(--brand)]">{videosError}</p>
+            <p className="text-sm text-[var(--brand)]">{rtkErrorMessage(videosError)}</p>
           )}
           {!videosLoading && !videosError && !videos.length && (
             <p className="text-sm text-zinc-500">No videos yet.</p>

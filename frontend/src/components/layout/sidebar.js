@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useSyncExternalStore } from "react";
 import Link from "next/link";
 import Image from "next/image";
 import {
@@ -16,8 +16,7 @@ import {
 } from "@phosphor-icons/react";
 import { usePathname } from "next/navigation";
 import { X } from "lucide-react";
-import { useGetCurrentUserQuery } from "@/lib/redux/api";
-import { getSubscriptions } from "@/lib/video";
+import { useGetCurrentUserQuery, useGetSubscriptionsQuery } from "@/lib/redux/api";
 import { channelPath } from "@/lib/videoId";
 
 const THEME_CHANGED_EVENT = "theme-changed";
@@ -70,8 +69,13 @@ function ChannelAvatar({ name, imageUrl }) {
 
 export default function Sidebar({ open = false, onClose }) {
   const { data: user } = useGetCurrentUserQuery();
+  const { data: channelsData } = useGetSubscriptionsQuery(undefined, {
+    skip: !user,
+  });
+  const subscriptions = (
+    Array.isArray(channelsData) ? channelsData : channelsData?.items ?? []
+  ).slice(0, 5);
   const pathname = usePathname();
-  const [subscriptions, setSubscriptions] = useState([]);
   const theme = useSyncExternalStore(
     subscribeToTheme,
     getThemeSnapshot,
@@ -84,29 +88,6 @@ export default function Sidebar({ open = false, onClose }) {
     localStorage.setItem("theme", nextTheme);
     window.dispatchEvent(new Event(THEME_CHANGED_EVENT));
   }
-
-  useEffect(() => {
-    let cancelled = false;
-
-    if (!user) {
-      setSubscriptions([]);
-      return undefined;
-    }
-
-    getSubscriptions()
-      .then((channels) => {
-        if (cancelled || !channels) return;
-        const list = Array.isArray(channels) ? channels : channels.items ?? [];
-        setSubscriptions(list.slice(0, 5));
-      })
-      .catch(() => {
-        if (!cancelled) setSubscriptions([]);
-      });
-
-    return () => {
-      cancelled = true;
-    };
-  }, [user]);
 
   return (
     <aside
