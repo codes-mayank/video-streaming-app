@@ -1,54 +1,31 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import MainLayout from "@/components/layout/mainLayout";
 import VideoGrid from "@/components/home/videogrid";
 import AuthGate from "@/components/auth/authgate";
 import { Heart } from "@phosphor-icons/react";
-import { getLikedVideos, toVideoCardProps } from "@/lib/video";
+import { toVideoCardProps } from "@/lib/video";
+import { rtkErrorMessage, useGetLikedVideosQuery } from "@/lib/redux/api";
 
 const PAGE_SIZE = 20;
 
 function LikedVideosContent() {
-  const [likedVideos, setLikedVideos] = useState([]);
-  const [nextCursor, setNextCursor] = useState(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const loadingMoreRef = useRef(false);
+  const [cursor, setCursor] = useState(undefined);
+  const { data, isLoading, isFetching, error } = useGetLikedVideosQuery({
+    limit: PAGE_SIZE,
+    cursor,
+  });
 
-  const loadLiked = useCallback(async (cursor) => {
-    const data = await getLikedVideos({ limit: PAGE_SIZE, cursor });
-    const list = Array.isArray(data) ? data : (data.items ?? []);
-    const mapped = list.map((video) => toVideoCardProps(video));
-    setLikedVideos((prev) => (cursor ? [...prev, ...mapped] : mapped));
-    setNextCursor(data.next_cursor ?? null);
-    setHasMore(Boolean(data.has_more));
-  }, []);
+  const videos = (data?.items ?? []).map((video) => toVideoCardProps(video));
+  const hasMore = Boolean(data?.has_more);
+  const nextCursor = data?.next_cursor ?? null;
+  const loadingMore = Boolean(cursor) && isFetching;
 
-  useEffect(() => {
-    let cancelled = false;
-    loadLiked()
-      .catch((err) => console.error(err))
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [loadLiked]);
-
-  const handleNearEnd = useCallback(() => {
-    if (!hasMore || !nextCursor || loadingMoreRef.current) return;
-    loadingMoreRef.current = true;
-    setLoadingMore(true);
-    loadLiked(nextCursor)
-      .catch((err) => console.error(err))
-      .finally(() => {
-        loadingMoreRef.current = false;
-        setLoadingMore(false);
-      });
-  }, [hasMore, nextCursor, loadLiked]);
+  function handleNearEnd() {
+    if (!hasMore || !nextCursor || loadingMore) return;
+    setCursor(nextCursor);
+  }
 
   return (
     <MainLayout>
@@ -56,12 +33,15 @@ function LikedVideosContent() {
         <Heart size={24} weight="fill" className="rounded-full text-[var(--brand)]" />
         <h2 className="text-2xl font-bold">Liked Videos</h2>
       </div>
-      {loading && <p className="text-sm text-zinc-500">Loading liked videos...</p>}
-      {!loading && likedVideos.length === 0 && (
+      {isLoading && <p className="text-sm text-zinc-500">Loading liked videos...</p>}
+      {error && !videos.length && (
+        <p className="text-sm text-[var(--brand)]">{rtkErrorMessage(error)}</p>
+      )}
+      {!isLoading && !error && videos.length === 0 && (
         <p className="text-sm text-zinc-500">No liked videos yet.</p>
       )}
       <VideoGrid
-        videos={likedVideos}
+        videos={videos}
         hasMore={hasMore}
         loadingMore={loadingMore}
         onNearEnd={handleNearEnd}

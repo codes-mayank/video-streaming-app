@@ -2,9 +2,10 @@
 
 import { useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
-import { getMostLikedVideos, getThumbnailUrl } from "@/lib/video";
+import { getThumbnailUrl } from "@/lib/video";
 import LatestVideoCard from "../video/latestvideocard";
 import { getCategoryLabel } from "@/lib/categories";
+import { rtkErrorMessage, useMostLikedVideosQuery } from "@/lib/redux/api";
 
 const FALLBACK_THUMBNAIL =
   "https://placehold.co/1280x548/e2e8f0/64748b?text=Video";
@@ -25,20 +26,10 @@ function toCardProps(video) {
 }
 
 export default function Latest() {
-  const [videos, setVideos] = useState([]);
+  const { data, isLoading, error } = useMostLikedVideosQuery(5);
+  const list = Array.isArray(data) ? data : data?.items ?? [];
+  const videos = list.map(toCardProps);
   const [current, setCurrent] = useState(0);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    getMostLikedVideos(5)
-      .then((data) => {
-        const list = Array.isArray(data) ? data : data.items ?? [];
-        setVideos(list.map(toCardProps));
-      })
-      .catch((err) => setError(err.message))
-      .finally(() => setLoading(false));
-  }, []);
 
   useEffect(() => {
     if (videos.length < 2) return;
@@ -48,14 +39,14 @@ export default function Latest() {
     return () => clearInterval(interval);
   }, [videos.length, current]);
 
-  if (loading) {
+  if (isLoading) {
     return (
       <div className="mb-8 h-[230px] animate-pulse rounded-3xl bg-zinc-200 sm:h-[200px] lg:h-[220px]" />
     );
   }
 
   if (error) {
-    return <p className="mb-6 text-[var(--brand)]">{error}</p>;
+    return <p className="mb-6 text-[var(--brand)]">{rtkErrorMessage(error)}</p>;
   }
 
   if (videos.length === 0) {

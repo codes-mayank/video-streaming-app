@@ -49,11 +49,43 @@ export function rtkErrorMessage(error) {
   return error?.message || "Something went wrong. Please try again.";
 }
 
+function withCursor(path, { limit, cursor, extra } = {}) {
+  const params = new URLSearchParams();
+  if (limit != null) params.set("limit", String(limit));
+  if (cursor) params.set("cursor_id", String(cursor));
+  if (extra) {
+    for (const [key, value] of Object.entries(extra)) {
+      if (value != null && value !== "") params.set(key, String(value));
+    }
+  }
+  const qs = params.toString();
+  return qs ? `${path}?${qs}` : path;
+}
+
+function infiniteList({ cacheKey }) {
+  return {
+    serializeQueryArgs: ({ queryArgs }) => cacheKey(queryArgs ?? {}),
+    merge(currentCache, newItems, { arg }) {
+      if (!currentCache || !arg?.cursor) return newItems;
+      return {
+        ...newItems,
+        items: [...(currentCache.items ?? []), ...(newItems.items ?? [])],
+      };
+    },
+    forceRefetch({ currentArg, previousArg }) {
+      return (
+        currentArg?.cursor !== previousArg?.cursor ||
+        cacheKey(currentArg ?? {}) !== cacheKey(previousArg ?? {})
+      );
+    },
+  };
+}
+
 export const api = createApi({
   reducerPath: "api",
   baseQuery,
   keepUnusedDataFor: 300,
-  tagTypes: ["User", "Video"],
+  tagTypes: ["User", "Video", "Liked", "WatchHistory"],
   endpoints: (builder) => ({
     getCurrentUser: builder.query({
       query: () => "/users/auth/me",
@@ -109,6 +141,30 @@ export const api = createApi({
         }
       },
     }),
+    mostLikedVideos: builder.query({
+        query: (limit = 5) => `/videos/most-liked?limit=${limit}`,
+        providesTags: ["Video"],
+    }),
+    getLikedVideos: builder.query({
+      query: ({ limit = 20, cursor } = {}) =>
+        withCursor("/videos/liked-videos", { limit, cursor }),
+      ...infiniteList({
+        cacheKey: ({ limit = 20 } = {}) => `liked:${limit}`,
+      }),
+      providesTags: ["Liked"],
+    }),
+    getWatchHistory: builder.query({
+        query: ({ limit = 20, cursor } = {}) =>
+          withCursor("/videos/watch-history", { limit, cursor }),
+        ...infiniteList({
+          cacheKey: ({ limit = 20 } = {}) => `watch-history:${limit}`,
+        }),
+        providesTags: ["WatchHistory"],
+    }),
+    deleteWatchHistory: builder.mutation({
+      query: () => ({ url: "/videos/watch-history/", method: "DELETE" }),
+      invalidatesTags: ["WatchHistory"],
+    }),
   }),
 });
 
@@ -118,4 +174,8 @@ export const {
   useSignupMutation,
   useGoogleLoginMutation,
   useLogoutMutation,
+  useMostLikedVideosQuery,
+  useGetLikedVideosQuery,
+  useGetWatchHistoryQuery,
+  useDeleteWatchHistoryMutation,
 } = api;

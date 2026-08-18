@@ -2,7 +2,7 @@
 
 import { Suspense, useEffect, useRef, useState } from "react";
 import Link from "next/link";
-import { Search, User as UserIcon, ChevronDown, Menu } from "lucide-react";
+import { Search, User as UserIcon, ChevronDown, Menu, X } from "lucide-react";
 import { useGetCurrentUserQuery, useLogoutMutation } from "@/lib/redux/api";
 import { useRouter, useSearchParams } from "next/navigation";
 import Image from "next/image";
@@ -72,6 +72,12 @@ function NavbarContent({ onMenuClick }) {
     router.push(`/search?query=${encodeURIComponent(q)}`);
   }
 
+  function handleClearSearch() {
+    setSearchQuery("");
+    router.push("/");
+    router.refresh();
+  }
+
   async function handleLogout() {
     setDropdownOpen(false);
     try {
@@ -108,9 +114,9 @@ function NavbarContent({ onMenuClick }) {
           placeholder="Search videos..."
           className="w-full bg-transparent text-sm text-[var(--text-primary)] outline-none placeholder:text-[var(--input-placeholder)]"
         />
-        {/* <kbd className="hidden shrink-0 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 sm:inline">
-          ⌘ K
-        </kbd> */}
+        <kbd className="hidden shrink-0 rounded-md border border-zinc-200 bg-zinc-50 px-1.5 py-0.5 text-[10px] font-medium text-zinc-400 sm:inline">
+          {searchQuery ? <X size={16} onClick={handleClearSearch} className="cursor-pointer" /> : null}
+        </kbd>
       </form>
 
       <div className="flex items-space-between gap-2">

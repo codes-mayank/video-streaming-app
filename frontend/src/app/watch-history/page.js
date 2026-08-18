@@ -1,70 +1,46 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useState } from "react";
 import { Loader2, Trash2 } from "lucide-react";
 import MainLayout from "@/components/layout/mainLayout";
 import VideoGrid from "@/components/home/videogrid";
 import AuthGate from "@/components/auth/authgate";
 import { ClockCounterClockwise } from "@phosphor-icons/react";
-import { deleteWatchHistory, getWatchHistory, toVideoCardProps } from "@/lib/video";
+import { toVideoCardProps } from "@/lib/video";
+import {
+  rtkErrorMessage,
+  useDeleteWatchHistoryMutation,
+  useGetWatchHistoryQuery,
+} from "@/lib/redux/api";
 
 const PAGE_SIZE = 20;
 
 function WatchHistoryContent() {
-  const [watchHistory, setWatchHistory] = useState([]);
-  const [nextCursor, setNextCursor] = useState(null);
-  const [hasMore, setHasMore] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
+  const [cursor, setCursor] = useState(undefined);
   const [confirmOpen, setConfirmOpen] = useState(false);
-  const [clearing, setClearing] = useState(false);
-  const loadingMoreRef = useRef(false);
+  const { data, isLoading, isFetching, error } = useGetWatchHistoryQuery({
+    limit: PAGE_SIZE,
+    cursor,
+  });
+  const [deleteWatchHistory, { isLoading: clearing }] = useDeleteWatchHistoryMutation();
 
-  const loadHistory = useCallback(async (cursor) => {
-    const data = await getWatchHistory({ limit: PAGE_SIZE, cursor });
-    const list = Array.isArray(data) ? data : (data.items ?? []);
-    const mapped = list.map((video) => toVideoCardProps(video));
-    setWatchHistory((prev) => (cursor ? [...prev, ...mapped] : mapped));
-    setNextCursor(data.next_cursor ?? null);
-    setHasMore(Boolean(data.has_more));
-  }, []);
+  const videos = (data?.items ?? []).map((video) => toVideoCardProps(video));
+  const hasMore = Boolean(data?.has_more);
+  const nextCursor = data?.next_cursor ?? null;
+  const loadingMore = Boolean(cursor) && isFetching;
 
-  useEffect(() => {
-    let cancelled = false;
-    loadHistory()
-      .catch((err) => console.error(err))
-      .finally(() => {
-        if (!cancelled) setLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [loadHistory]);
-
-  const handleNearEnd = useCallback(() => {
-    if (!hasMore || !nextCursor || loadingMoreRef.current) return;
-    loadingMoreRef.current = true;
-    setLoadingMore(true);
-    loadHistory(nextCursor)
-      .catch((err) => console.error(err))
-      .finally(() => {
-        loadingMoreRef.current = false;
-        setLoadingMore(false);
-      });
-  }, [hasMore, nextCursor, loadHistory]);
+  function handleNearEnd() {
+    if (!hasMore || !nextCursor || loadingMore) return;
+    setCursor(nextCursor);
+  }
 
   async function handleClearHistory() {
-    setClearing(true);
     try {
-      await deleteWatchHistory();
-      setWatchHistory([]);
-      setNextCursor(null);
-      setHasMore(false);
+      await deleteWatchHistory().unwrap();
+      setCursor(undefined);
       setConfirmOpen(false);
     } catch (err) {
-      console.error(err);
-    } finally {
-      setClearing(false);
+      console.error(rtkErrorMessage(err));
     }
   }
 
@@ -75,7 +51,7 @@ function WatchHistoryContent() {
           <ClockCounterClockwise size={24} className="rounded-full text-[var(--brand)]" />
           <h2 className="text-2xl font-bold">Watch History</h2>
         </div>
-        {watchHistory.length > 0 && (
+        {videos.length > 0 && (
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}
@@ -87,13 +63,16 @@ function WatchHistoryContent() {
         )}
       </div>
 
-      {loading && <p className="text-sm text-zinc-500">Loading watch history...</p>}
-      {!loading && watchHistory.length === 0 && (
+      {isLoading && <p className="text-sm text-zinc-500">Loading watch history...</p>}
+      {error && !videos.length && (
+        <p className="text-sm text-[var(--brand)]">{rtkErrorMessage(error)}</p>
+      )}
+      {!isLoading && !error && videos.length === 0 && (
         <p className="text-sm text-zinc-500">No videos in your watch history yet.</p>
       )}
 
       <VideoGrid
-        videos={watchHistory}
+        videos={videos}
         hasMore={hasMore}
         loadingMore={loadingMore}
         onNearEnd={handleNearEnd}
