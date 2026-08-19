@@ -767,7 +767,13 @@ def get_video_thumbnail(video_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Thumbnail not found")
 
     content_bytes, content_type = _fetch_object_bytes(video.thumbnail_key)
-    return Response(content=content_bytes, media_type=content_type)
+    return Response(
+        content=content_bytes, media_type=content_type, 
+        headers={
+            "Cache-Control": "public, max-age=86400, stale-while-revalidate=604800",
+            "ETag": f'"{video.thumbnail_key}"',
+        }
+    )
 
 
 @router.get("/{video_id}/likes", response_model=LikeStatusResponse)
