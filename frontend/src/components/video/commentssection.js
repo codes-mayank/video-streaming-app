@@ -60,11 +60,11 @@ export default function CommentsSection({ videoId }) {
     }
 
     setBody("");
+    setShowEmojiPicker(false);
     setError("");
 
     try {
       await createComment({ videoId, body: trimmed }).unwrap();
-      setCursor(undefined);
     } catch (err) {
       setBody(trimmed);
       const message = rtkErrorMessage(err);
@@ -92,7 +92,6 @@ export default function CommentsSection({ videoId }) {
         commentId,
         clientId: comment.client_id,
       }).unwrap();
-      setCursor(undefined);
     } catch (err) {
       setError(rtkErrorMessage(err) || "Failed to delete comment.");
     } finally {

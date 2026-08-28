@@ -311,7 +311,48 @@ export const api = createApi({
         method: "POST",
         body: { body },
       }),
-      invalidatesTags: (_r, _e, { videoId }) => [{ type: "Comments", id: videoId }],
+      async onQueryStarted({ videoId, body }, { dispatch, queryFulfilled, getState }) {
+        const user = api.endpoints.getCurrentUser.select()(getState())?.data;
+        const clientId = `optimistic-${Date.now()}`;
+        const optimistic = {
+          id: -Date.now(),
+          video_id: videoId,
+          user_id: user?.id ?? 0,
+          username: user?.username ?? "You",
+          body,
+          created_at: new Date().toISOString(),
+          is_owner: true,
+          client_id: clientId,
+        };
+        const patch = dispatch(
+          api.util.updateQueryData(
+            "getComments",
+            { videoId, limit: 20 },
+            (draft) => {
+              draft.items = [optimistic, ...(draft.items ?? [])];
+              draft.total = (draft.total ?? 0) + 1;
+            }
+          )
+        );
+        try {
+          const { data } = await queryFulfilled;
+          dispatch(
+            api.util.updateQueryData(
+              "getComments",
+              { videoId, limit: 20 },
+              (draft) => {
+                const items = draft.items ?? [];
+                const index = items.findIndex((item) => item.client_id === clientId);
+                if (index >= 0) items[index] = data;
+                else items.unshift(data);
+                draft.items = items;
+              }
+            )
+          );
+        } catch {
+          patch.undo();
+        }
+      },
     }),
     deleteComment: builder.mutation({
       query: ({ videoId, commentId, clientId }) => {
@@ -323,7 +364,34 @@ export const api = createApi({
           method: "DELETE",
         };
       },
-      invalidatesTags: (_r, _e, { videoId }) => [{ type: "Comments", id: videoId }],
+      async onQueryStarted(
+        { videoId, commentId, clientId },
+        { dispatch, queryFulfilled }
+      ) {
+        const patch = dispatch(
+          api.util.updateQueryData(
+            "getComments",
+            { videoId, limit: 20 },
+            (draft) => {
+              const before = draft.items?.length ?? 0;
+              draft.items = (draft.items ?? []).filter((item) => {
+                if (clientId && item.client_id === clientId) return false;
+                if (commentId != null && item.id === commentId) return false;
+                return true;
+              });
+              const removed = before - draft.items.length;
+              if (removed && draft.total != null) {
+                draft.total = Math.max(0, draft.total - removed);
+              }
+            }
+          )
+        );
+        try {
+          await queryFulfilled;
+        } catch {
+          patch.undo();
+        }
+      },
     }),
   }),
 });
