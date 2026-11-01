@@ -15,8 +15,17 @@ venv/
 __pycache__/
 *.pyc
 .mypy_cache/
+.coverage
+.coverage.*
+htmlcov/
 
 # Node / Next.js (platform-specific native binaries)
 node_modules/
 .next/
 out/
+
+# Diagrams
+architecture/
+
+# Mac files
+.DS_Store

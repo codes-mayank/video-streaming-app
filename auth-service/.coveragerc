@@ -1,0 +1,7 @@
+[run]
+source = app
+
+[report]
+include_namespace_packages = true
+show_missing = true
+fail_under = 70
