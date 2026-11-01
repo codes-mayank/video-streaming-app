@@ -491,6 +491,7 @@ video-streaming-app/
 ├── auth-service/          # Authentication and user profiles
 ├── video-service/         # Video uploads, metadata, HLS delivery
 ├── transcoding-service/   # Kafka consumer and FFmpeg worker
+├── statistics-service/    # Subscription and engagement event processing
 ├── kafka/                 # Kafka KRaft Docker infrastructure
 ├── scripts/               # Setup utilities
 ├── screenshots/           # Application screenshots
@@ -602,6 +603,38 @@ For local same-origin API requests, configure equivalent development rewrites or
 
 ---
 
+## 🧪 Tests and Coverage
+
+Each Python service has a `tests/` directory, `requirements-dev.txt`, and `.coveragerc`.
+
+| Service | Tests cover |
+|---|---|
+| Auth | Passwords and tokens, signup validation, login and refresh, profile updates, Google login, and profile photo uploads |
+| Video | Categories and storage paths, upload and transcode routes, listings and search, HLS delivery, likes, comments, channels, and subscriptions |
+| Transcoding | Duration probing, HLS playlist layout, and the transcoding pipeline with FFmpeg and storage mocked |
+| Statistics | Subscription and engagement event batches using temporary SQLite databases |
+
+From the repository root, run each suite in its service directory. For example:
+
+```bash
+cd auth-service
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/python -m coverage run -m pytest -q
+.venv/bin/python -m coverage report -m
+```
+
+Repeat with `video-service`, `transcoding-service`, and `statistics-service`.
+The tests use mocks or temporary SQLite databases; PostgreSQL, Kafka, Redis,
+Cloudflare R2, and FFmpeg do not need to be running. Coverage measures each
+service's `app/` code, and `coverage report` fails below **70%**.
+
+For a line-by-line browser report, run `.venv/bin/python -m coverage html` from
+the service directory and open `htmlcov/index.html`. The generated `.coverage`
+and `htmlcov/` files are ignored by Git.
+
+---
+
 ## 🔌 API Overview
 
 ### Authentication
@@ -663,7 +696,7 @@ Explored the differences between synchronous and asynchronous processing, relati
 
 ## 🔮 Future Improvements
 
-- Automated testing and GitHub Actions CI/CD.
+- GitHub Actions CI/CD for the existing test suites.
 - Idempotent transcoding, retries, and failed-job recovery.
 - Resumable uploads and improved upload progress handling.
 - CDN-based delivery for HLS segments.
